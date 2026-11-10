@@ -123,3 +123,10 @@
 html,body{margin:0;background:#0d0f14;color:#e7e2dc}
 body{padding:16px 0}
 main{padding:0 8px}
+
+.seestar-planner .ss-altw{margin-top:8px;max-width:380px}
+.seestar-planner .ss-alt{display:block;width:100%;height:auto}
+.seestar-planner .ss-alt .ss-tip{opacity:0;pointer-events:none;transition:opacity .12s}
+.seestar-planner .ss-alt:hover .ss-tip{opacity:1}
+.seestar-planner .ss-altcap{font:500 .68rem var(--ss-mono);color:var(--ss-dim);margin-top:2px}
+.seestar-planner #ss-fSim{display:block;margin-top:6px}

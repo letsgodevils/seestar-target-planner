@@ -201,6 +201,40 @@ function tsLinks(o){
   if(!out.length){ const ids=(String(o.members).match(/\b(M\d+|NGC\s?\d+|IC\s?\d+)/g)||[]); out=ids.map(i=>[i,tsSlug(i)]).filter(x=>x[1]); }
   return out.map(x=>[x[0],tsUrl(x[1])]);
 }
+// ---- Tonight's altitude chart (per target). Time axis is local mean solar time at the chosen site.
+const CW=300, CH=64, ALT0=-5, ALT1=90, NSAMP=114, TSTEP=10; // 15:00 -> 10:00, 10-minute steps
+function tonightGrid(){
+  if(S._t) return S._t;
+  const jdNow=Date.now()/86400000+2440587.5, n=Math.floor(jdNow+S.lon/360), jd0=n-S.lon/360+3/24;
+  const lst=[], sun=[];
+  for(let k=0;k<NSAMP;k++){ const jd=jd0+k*TSTEP/1440, l=lstOf(jd,S.lon), sp=sunPos(jd); lst.push(l); sun.push(altOf(sp.ra,sp.dec,S.lat,l)); }
+  return S._t={lst,sun,nowF:(jdNow-jd0)/(NSAMP*TSTEP/1440)};
+}
+const CMP=["north","north-east","east","south-east","south","south-west","west","north-west"];
+function altChart(o){
+  if(!S) return '';
+  const ra=o.raD!=null?+o.raD:(o.ra?raDeg(o.ra):NaN), dec=o.decD!=null?+o.decD:(o.dec?decDeg(o.dec):NaN);
+  if(isNaN(ra)||isNaN(dec)) return '';
+  const T=tonightGrid(), dx=CW/(NSAMP-1), yOf=a=>CH-(Math.max(ALT0,a)-ALT0)/(ALT1-ALT0)*CH;
+  const alts=T.lst.map(l=>altOf(ra,dec,S.lat,l));
+  const THR=25; let best=0, above=0;
+  alts.forEach((a,k)=>{ if(a>alts[best]) best=k; if(a>=THR&&T.sun[k]<-18) above+=TSTEP; });
+  const bands=T.sun.map((a,k)=>`<rect x="${(k*dx-dx/2).toFixed(1)}" y="0" width="${(dx+0.6).toFixed(1)}" height="${CH}" fill="${a>-0.8?'#24486f':a>-6?'#4a3a63':a>-12?'#27284a':a>-18?'#14172a':'#08090f'}"/>`).join('');
+  const pts=alts.map((a,k)=>`${k?'L':'M'}${(k*dx).toFixed(1)},${yOf(a).toFixed(1)}`).join('');
+  const above0=alts.some(a=>a>0);
+  let peak='', cap='';
+  if(alts[best]>0){
+    const H=T.lst[best]-ra, sH=sinD(H), cH=cosD(H), az=((Math.atan2(sH,cH*sinD(S.lat)-Math.tan(dec*RAD)*cosD(S.lat))/RAD+180)%360+360)%360;
+    const dir=CMP[Math.round(az/45)%8], px=best*dx, py=yOf(alts[best]);
+    const hh=Math.floor(above/60), mm=String(above%60).padStart(2,'0');
+    const txt=`alt ${Math.round(alts[best])}° · ${dir} · ${String(hh).padStart(2,'0')}:${mm} hr`, w=txt.length*4.1+10, lx=Math.min(Math.max(px-w/2,2),CW-w-2), ly=py<26?py+8:py-22;
+    cap=`Tonight · peak alt ${Math.round(alts[best])}° ${dir} · ${String(hh).padStart(2,'0')}:${mm} hr above ${THR}° in the dark`;
+    peak=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#fff" stroke="#ff5c7a" stroke-width="1.6"/><g class="ss-tip"><rect x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" width="${w.toFixed(1)}" height="14" rx="4" fill="#0d0f17" stroke="#3a3f55" stroke-width=".6"/><text x="${(lx+w/2).toFixed(1)}" y="${(ly+9.6).toFixed(1)}" text-anchor="middle" font-size="7.4" fill="#d8dbe6" font-family="inherit">${txt}</text></g>`;
+  }
+  const now=(T.nowF>0&&T.nowF<1)?`<line x1="${(T.nowF*CW).toFixed(1)}" y1="0" x2="${(T.nowF*CW).toFixed(1)}" y2="${CH}" stroke="#3aa0ff" stroke-width=".9" stroke-dasharray="3 2"/><rect x="${(T.nowF*CW-12).toFixed(1)}" y="1.5" width="24" height="9" rx="4.5" fill="#1597b8"/><text x="${(T.nowF*CW).toFixed(1)}" y="8.4" text-anchor="middle" font-size="6.2" font-weight="700" fill="#fff" font-family="inherit">NOW</text>`:'';
+  let ticks=''; for(let h=18;h<=33;h+=3){ const x=((h-15)*60/TSTEP)*dx; if(x<8||x>CW-8) continue; ticks+=`<text x="${x.toFixed(1)}" y="${CH+9}" text-anchor="middle" font-size="6.6" fill="#8b90a3" font-family="inherit">${String(h%24).padStart(2,'0')}:00</text>`; }
+  return `<div class="ss-altw"><svg class="ss-alt" viewBox="-4 -4 ${CW+8} ${CH+16}" role="img" aria-label="Altitude tonight"><defs><clipPath id="ss-cp"><rect width="${CW}" height="${CH}" rx="5"/></clipPath></defs><g clip-path="url(#ss-cp)">${bands}<line x1="0" x2="${CW}" y1="${yOf(THR).toFixed(1)}" y2="${yOf(THR).toFixed(1)}" stroke="#7d869f" stroke-width=".7" stroke-dasharray="3 3" opacity=".7"/>${above0?`<path d="${pts}" fill="none" stroke="#ff5c7a" stroke-width="1.8" stroke-linejoin="round"/>`:''}${now}</g>${peak}${ticks}</svg>${cap?`<div class="ss-altcap">${cap}</div>`:'<div class="ss-altcap">Below the horizon tonight</div>'}</div>`;
+}
 function rowHTML(o,rank,r){
   const tl=tsLinks(o), su=simUrl(o), tl0=tl.length?tl[0]:o.wiki[0];
   const links=tl.map(w=>`<a class="ss-wk" href="${esc(w[1])}" target="_blank" rel="noopener">${esc(w[0])}</a>`);
@@ -217,7 +251,7 @@ function rowHTML(o,rank,r){
   return `<div class="ss-row" role="row">${head}
 <div class="ss-c-se"><span class="ss-lbl">Season</span><span class="ss-mono">${r.season}</span></div>
 <div class="ss-c-pk"><span class="ss-lbl">Peak</span><span class="ss-mono">${r.peak}</span><span class="ss-mono ss-dim">${r.peakH} h</span></div>
-<div class="ss-c-win"><span class="ss-lbl">Dark</span><div class="ss-win">${w}</div></div>
+<div class="ss-c-win"><span class="ss-lbl">Dark</span><div class="ss-win">${w}</div>${altChart(o)}</div>
 <div class="ss-c-alt"><span class="ss-lbl">Max alt</span><span class="ss-mono">${r.maxalt}°</span>${tags}</div>
 <div class="ss-c-int"><span class="ss-int">${esc(scaleInteg(o.integ))}</span>${o.est?'<span class="ss-tag ss-zen">estimate</span>':''}</div></div>`;
 }
