@@ -127,6 +127,18 @@ main{padding:0 8px}
 .seestar-planner .ss-altw{margin-top:8px;max-width:380px}
 .seestar-planner .ss-alt{display:block;width:100%;height:auto}
 .seestar-planner .ss-alt .ss-tip{opacity:0;pointer-events:none;transition:opacity .12s}
-.seestar-planner .ss-alt:hover .ss-tip{opacity:1}
+.seestar-planner .ss-alt.ss-on .ss-tip{opacity:1}
+.seestar-planner .ss-alt .ss-cur{visibility:hidden}
+.seestar-planner .ss-alt.ss-on .ss-cur{visibility:visible}
+.seestar-planner .ss-alt{touch-action:pan-y;cursor:crosshair}
 .seestar-planner .ss-altcap{font:500 .68rem var(--ss-mono);color:var(--ss-dim);margin-top:2px}
 .seestar-planner #ss-fSim{display:block;margin-top:6px}
+
+.seestar-planner .ss-altw{max-width:none}
+.ss-modal{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(5,6,10,.78);padding:16px}
+.ss-modal .ss-modal-box{position:relative;width:min(980px,96vw);background:var(--ss-panel,#12141c);border:1px solid var(--ss-line,#2a2d3a);border-radius:12px;padding:18px 20px 14px;color:var(--ss-ink,#eee)}
+.ss-modal .ss-modal-t{font-weight:700;font-size:1.05rem;margin:0 36px 10px 0}
+.ss-modal .ss-modal-x{position:absolute;top:8px;right:10px;width:32px;height:32px;border:0;background:transparent;color:var(--ss-ink,#eee);font-size:1.6rem;line-height:1;cursor:pointer;border-radius:8px}
+.ss-modal .ss-modal-x:hover{background:rgba(255,255,255,.08)}
+.ss-modal .ss-altcap{font-size:.85rem;margin-top:6px}
+.seestar-planner .ss-alt{cursor:zoom-in}

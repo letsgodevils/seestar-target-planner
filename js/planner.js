@@ -202,7 +202,7 @@ function tsLinks(o){
   return out.map(x=>[x[0],tsUrl(x[1])]);
 }
 // ---- Tonight's altitude chart (per target). Time axis is local mean solar time at the chosen site.
-const CW=300, CH=64, ALT0=-5, ALT1=90, NSAMP=114, TSTEP=10; // 15:00 -> 10:00, 10-minute steps
+const CW=300, CH=80, ALT0=-5, ALT1=90, NSAMP=114, TSTEP=10; // 15:00 -> 10:00, 10-minute steps
 function tonightGrid(){
   if(S._t) return S._t;
   const jdNow=Date.now()/86400000+2440587.5, n=Math.floor(jdNow+S.lon/360), jd0=n-S.lon/360+3/24;
@@ -222,18 +222,14 @@ function altChart(o){
   const bands=T.sun.map((a,k)=>`<rect x="${(k*dx-dx/2).toFixed(1)}" y="0" width="${(dx+0.6).toFixed(1)}" height="${CH}" fill="${a>-0.8?'#24486f':a>-6?'#4a3a63':a>-12?'#27284a':a>-18?'#14172a':'#08090f'}"/>`).join('');
   const pts=alts.map((a,k)=>`${k?'L':'M'}${(k*dx).toFixed(1)},${yOf(a).toFixed(1)}`).join('');
   const above0=alts.some(a=>a>0);
-  let peak='', cap='';
-  if(alts[best]>0){
-    const H=T.lst[best]-ra, sH=sinD(H), cH=cosD(H), az=((Math.atan2(sH,cH*sinD(S.lat)-Math.tan(dec*RAD)*cosD(S.lat))/RAD+180)%360+360)%360;
-    const dir=CMP[Math.round(az/45)%8], px=best*dx, py=yOf(alts[best]);
-    const hh=Math.floor(above/60), mm=String(above%60).padStart(2,'0');
-    const txt=`alt ${Math.round(alts[best])}° · ${dir} · ${String(hh).padStart(2,'0')}:${mm} hr`, w=txt.length*4.1+10, lx=Math.min(Math.max(px-w/2,2),CW-w-2), ly=py<26?py+8:py-22;
-    cap=`Tonight · peak alt ${Math.round(alts[best])}° ${dir} · ${String(hh).padStart(2,'0')}:${mm} hr above ${THR}° in the dark`;
-    peak=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#fff" stroke="#ff5c7a" stroke-width="1.6"/><g class="ss-tip"><rect x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" width="${w.toFixed(1)}" height="14" rx="4" fill="#0d0f17" stroke="#3a3f55" stroke-width=".6"/><text x="${(lx+w/2).toFixed(1)}" y="${(ly+9.6).toFixed(1)}" text-anchor="middle" font-size="7.4" fill="#d8dbe6" font-family="inherit">${txt}</text></g>`;
-  }
-  const now=(T.nowF>0&&T.nowF<1)?`<line x1="${(T.nowF*CW).toFixed(1)}" y1="0" x2="${(T.nowF*CW).toFixed(1)}" y2="${CH}" stroke="#3aa0ff" stroke-width=".9" stroke-dasharray="3 2"/><rect x="${(T.nowF*CW-12).toFixed(1)}" y="1.5" width="24" height="9" rx="4.5" fill="#1597b8"/><text x="${(T.nowF*CW).toFixed(1)}" y="8.4" text-anchor="middle" font-size="6.2" font-weight="700" fill="#fff" font-family="inherit">NOW</text>`:'';
-  let ticks=''; for(let h=18;h<=33;h+=3){ const x=((h-15)*60/TSTEP)*dx; if(x<8||x>CW-8) continue; ticks+=`<text x="${x.toFixed(1)}" y="${CH+9}" text-anchor="middle" font-size="6.6" fill="#8b90a3" font-family="inherit">${String(h%24).padStart(2,'0')}:00</text>`; }
-  return `<div class="ss-altw"><svg class="ss-alt" viewBox="-4 -4 ${CW+8} ${CH+16}" role="img" aria-label="Altitude tonight"><defs><clipPath id="ss-cp"><rect width="${CW}" height="${CH}" rx="5"/></clipPath></defs><g clip-path="url(#ss-cp)">${bands}<line x1="0" x2="${CW}" y1="${yOf(THR).toFixed(1)}" y2="${yOf(THR).toFixed(1)}" stroke="#7d869f" stroke-width=".7" stroke-dasharray="3 3" opacity=".7"/>${above0?`<path d="${pts}" fill="none" stroke="#ff5c7a" stroke-width="1.8" stroke-linejoin="round"/>`:''}${now}</g>${peak}${ticks}</svg>${cap?`<div class="ss-altcap">${cap}</div>`:'<div class="ss-altcap">Below the horizon tonight</div>'}</div>`;
+  const azs=T.lst.map(l=>{const H=l-ra; return Math.round(((Math.atan2(sinD(H),cosD(H)*sinD(S.lat)-Math.tan(dec*RAD)*cosD(S.lat))/RAD+180)%360+360)%360);});
+  const pk=alts[best]>0, px=best*dx, py=yOf(alts[best]);
+  const hh=Math.floor(above/60), mm=String(above%60).padStart(2,'0');
+  const cap=pk?`Tonight · peak alt ${Math.round(alts[best])}° ${CMP[Math.round(azs[best]/45)%8]} · ${String(hh).padStart(2,'0')}:${mm} hr above ${THR}° in the dark`:'';
+  const peak=`<line class="ss-cur" x1="${px.toFixed(1)}" x2="${px.toFixed(1)}" y1="0" y2="${CH}" stroke="#fff" stroke-width=".6" stroke-dasharray="2 2" opacity=".55"/><circle class="ss-dot" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#fff" stroke="#ff5c7a" stroke-width="1.6"${pk?'':' visibility="hidden"'}/><g class="ss-tip"><rect x="0" y="0" width="80" height="17" rx="5" fill="#0d0f17" stroke="#3a3f55" stroke-width=".6"/><text x="40" y="11.5" text-anchor="middle" font-size="9" fill="#d8dbe6" font-family="inherit"></text></g>`;
+  const now=(T.nowF>0&&T.nowF<1)?`<line x1="${(T.nowF*CW).toFixed(1)}" y1="0" x2="${(T.nowF*CW).toFixed(1)}" y2="${CH}" stroke="#3aa0ff" stroke-width=".9" stroke-dasharray="3 2"/><rect x="${(T.nowF*CW-15).toFixed(1)}" y="2" width="30" height="12" rx="6" fill="#1597b8"/><text x="${(T.nowF*CW).toFixed(1)}" y="10.6" text-anchor="middle" font-size="7.8" font-weight="700" fill="#fff" font-family="inherit">NOW</text>`:'';
+  let ticks=''; for(let h=18;h<=33;h+=3){ const x=((h-15)*60/TSTEP)*dx; if(x<8||x>CW-8) continue; ticks+=`<text x="${x.toFixed(1)}" y="${CH+12}" text-anchor="middle" font-size="8.2" fill="#8b90a3" font-family="inherit">${String(h%24).padStart(2,'0')}:00</text>`; }
+  return `<div class="ss-altw"><svg class="ss-alt" data-a="${alts.map(v=>v.toFixed(1)).join(',')}" data-z="${azs.join(',')}" data-best="${best}" data-pk="${pk?1:0}" viewBox="-4 -4 ${CW+8} ${CH+19}" role="img" aria-label="Altitude tonight"><defs><clipPath id="ss-cp"><rect width="${CW}" height="${CH}" rx="5"/></clipPath></defs><g clip-path="url(#ss-cp)">${bands}<line x1="0" x2="${CW}" y1="${yOf(THR).toFixed(1)}" y2="${yOf(THR).toFixed(1)}" stroke="#7d869f" stroke-width=".7" stroke-dasharray="3 3" opacity=".7"/>${above0?`<path d="${pts}" fill="none" stroke="#ff5c7a" stroke-width="1.8" stroke-linejoin="round"/>`:''}${now}</g>${peak}${ticks}</svg>${cap?`<div class="ss-altcap">${cap}</div>`:'<div class="ss-altcap">Below the horizon tonight</div>'}</div>`;
 }
 function rowHTML(o,rank,r){
   const tl=tsLinks(o), su=simUrl(o), tl0=tl.length?tl[0]:o.wiki[0];
@@ -339,7 +335,7 @@ function doFind(){
     box.innerHTML=`<p class="ss-err">${esc(e&&e.message&&/^Town search/.test(e.message)?e.message:'Town search failed. Check your connection and try again.')}</p>`;
   }).finally(()=>{ geoBusy=false; $('findBtn').disabled=false; });
 }
-function init(){
+function init(){ scrubInit(); chartModalInit();
   if(!$('app')) return;
   Promise.all([getJSON(OPT.lists),getJSON(OPT.cities)]).then(([l,c])=>{
     LISTS=l; CITIES=c;
@@ -372,6 +368,48 @@ function init(){
     setFields(saved&&isFinite(saved.lat)&&isFinite(saved.lon)?saved:DEF);
     run();
   }).catch(()=>{ $('rows').innerHTML='<p class="ss-err">The planner data could not be loaded. Reload the page and try again.</p>'; });
+}
+
+// Click a chart to open a larger copy (same scrubbing). Esc, the backdrop or the close button dismisses it.
+function chartModalInit(){
+  const close=()=>{ const m=document.getElementById('ss-modal'); if(m) m.remove(); };
+  document.addEventListener('click',e=>{
+    if(e.target.closest&&e.target.closest('.ss-modal-x')) return close();
+    const bd=e.target.closest&&e.target.closest('.ss-modal'); if(bd){ if(e.target===bd) close(); return; }
+    const sv=e.target.closest&&e.target.closest('.ss-alt'); if(!sv) return;
+    close();
+    const row=sv.closest('.ss-row'), nm=row&&row.querySelector('.ss-nm a'), cap=sv.parentNode.querySelector('.ss-altcap');
+    const m=document.createElement('div'); m.id='ss-modal'; m.className='ss-modal'; m.setAttribute('role','dialog'); m.setAttribute('aria-label','Altitude chart');
+    m.innerHTML=`<div class="ss-modal-box"><button class="ss-modal-x" type="button" aria-label="Close">×</button><div class="ss-modal-t">${esc(nm?nm.textContent:'Altitude tonight')}</div></div>`;
+    const w=sv.parentNode.cloneNode(true); w.classList.add('ss-altw-big'); m.firstChild.appendChild(w);
+    (document.getElementById('ss-app')||document.body).appendChild(m);
+  });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') close(); });
+}
+
+// Hover/touch scrubbing: the dot follows the pointer along the altitude curve and the pill shows alt, direction and time.
+function scrubInit(){
+  const dx=CW/(NSAMP-1), yOf=a=>CH-(Math.max(ALT0,a)-ALT0)/(ALT1-ALT0)*CH;
+  const place=(sv,k)=>{
+    if(!sv._d){ sv._d={a:sv.dataset.a.split(',').map(Number), z:sv.dataset.z.split(',').map(Number)}; }
+    const a=sv._d.a[k], z=sv._d.z[k], x=k*dx, y=yOf(a), m=15*60+k*TSTEP, hm=`${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+    const txt=a>0?`alt ${Math.round(a)}° · ${CMP[Math.round(z/45)%8]} · ${hm}`:`below horizon · ${hm}`, w=txt.length*5.1+12, lx=Math.min(Math.max(x-w/2,2),CW-w-2), ly=y<30?y+9:y-26;
+    const dot=sv.querySelector('.ss-dot'), cur=sv.querySelector('.ss-cur'), tip=sv.querySelector('.ss-tip'), r=tip.querySelector('rect'), t=tip.querySelector('text');
+    dot.setAttribute('cx',x.toFixed(1)); dot.setAttribute('cy',y.toFixed(1)); cur.setAttribute('x1',x.toFixed(1)); cur.setAttribute('x2',x.toFixed(1));
+    r.setAttribute('x',lx.toFixed(1)); r.setAttribute('y',ly.toFixed(1)); r.setAttribute('width',w.toFixed(1)); t.setAttribute('x',(lx+w/2).toFixed(1)); t.setAttribute('y',(ly+11.5).toFixed(1)); t.textContent=txt;
+  };
+  const reset=sv=>{ sv.classList.remove('ss-on'); place(sv,+sv.dataset.best); sv.querySelector('.ss-dot').setAttribute('visibility',sv.dataset.pk==='1'?'visible':'hidden'); };
+  let active=null;
+  document.addEventListener('pointermove',e=>{
+    const sv=e.target.closest?e.target.closest('.ss-alt'):null;
+    if(active&&active!==sv){ reset(active); active=null; }
+    if(!sv) return;
+    active=sv; const r=sv.getBoundingClientRect(), vb=sv.viewBox.baseVal, xv=vb.x+(e.clientX-r.left)/r.width*vb.width;
+    sv.classList.add('ss-on'); sv.querySelector('.ss-dot').setAttribute('visibility','visible');
+    place(sv,Math.max(0,Math.min(NSAMP-1,Math.round(xv/dx))));
+  });
+  const off=()=>{ if(active){ reset(active); active=null; } };
+  document.addEventListener('pointercancel',off); document.addEventListener('pointerup',e=>{ if(e.pointerType!=='mouse') off(); }); document.documentElement.addEventListener('mouseleave',off);
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
