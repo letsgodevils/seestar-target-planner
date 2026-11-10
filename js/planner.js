@@ -181,14 +181,31 @@ function updateScopeUI(){
   $('tipBatt').textContent=`Split long totals across several nights in the same dark window and stack them. Battery is about ${G.batt} h, so plan one or two targets per night.`;
 }
 function setScope(k){ if(!SCOPES[k]) return; scope=k; G=scopeGeom(k); store.set('seestarScope',k); updateScopeUI(); render(); renderLook(); }
+// Telescopius object page for a catalog id like "M31", "NGC 7000", "IC 1396". Returns null if the label isn't a plain catalog id.
+function tsSlug(label){
+  const m=String(label||'').trim().match(/^(M|NGC|IC)\s*(\d+)/i); if(m) return `${m[1].toLowerCase()}-${m[2]}`;
+  const o=String(label||'').trim().match(/^(Sh2|Abell|Ced)[\s-]*(\d+)/i); if(o) return `${o[1].toLowerCase()}-${o[2]}`;
+  return null;
+}
+function tsUrl(slug){
+  const q=S?`?lat=${S.lat.toFixed(4)}&lon=${S.lon.toFixed(4)}`:'';
+  return `https://telescopius.com/deep-sky-objects/${slug}${q}`;
+}
+function tsLinks(o){
+  // [label, url] pairs; wiki labels that aren't catalog ids (e.g. "Leo Triplet") are skipped, falling back to ids from the members text.
+  let out=o.wiki.map(w=>[w[0],tsSlug(w[0])]).filter(x=>x[1]);
+  if(!out.length){ const ids=(String(o.members).match(/\b(M\d+|NGC\s?\d+|IC\s?\d+)/g)||[]); out=ids.map(i=>[i,tsSlug(i)]).filter(x=>x[1]); }
+  return out.map(x=>[x[0],tsUrl(x[1])]);
+}
 function rowHTML(o,rank,r){
-  const links=o.wiki.map(w=>`<a class="ss-wk" href="${esc(w[1])}" target="_blank" rel="noopener">${esc(w[0])}</a>`);
-  const nameHTML=`<a class="ss-wk" href="${esc(o.wiki[0][1])}" target="_blank" rel="noopener">${esc(o.name)}</a>`;
+  const tl=tsLinks(o), tl0=tl.length?tl[0]:o.wiki[0];
+  const links=tl.map(w=>`<a class="ss-wk" href="${esc(w[1])}" target="_blank" rel="noopener">${esc(w[0])}</a>`);
+  const nameHTML=`<a class="ss-wk" href="${esc(tl0[1])}" target="_blank" rel="noopener" title="Open on Telescopius">${esc(o.name)}</a>`;
   const flt=`<span class="ss-flt ${o.filter==='Dual-band'?'ss-db':''}">${esc(o.filter)}</span>`;
   const fx=framing(o.frame); const fit=fx?`<span class="ss-fit ${fx.c}">${esc(fx.t)}</span>`:'';
   const size=o.sizeTxt??o.size;
   const head=`<span class="ss-rk">${rank}</span>
-<div class="ss-c-nm"><div class="ss-nm">${nameHTML}${flt}${fit}</div><div class="ss-mem">${o.typ?`<span class="ss-typ">${esc(o.typ)}</span> · `:''}${esc(o.members)} · <span class="ss-mono">${esc(size)}${/\d$/.test(String(size))?'′':''}${o.mag!=null?` · mag ${o.mag}`:''}</span></div>${links.length>1?`<div class="ss-wl">Wikipedia: ${links.join(' · ')}</div>`:''}<div class="ss-note">${esc(o.notes)}</div></div>`;
+<div class="ss-c-nm"><div class="ss-nm">${nameHTML}${flt}${fit}</div><div class="ss-mem">${o.typ?`<span class="ss-typ">${esc(o.typ)}</span> · `:''}${esc(o.members)} · <span class="ss-mono">${esc(size)}${/\d$/.test(String(size))?'′':''}${o.mag!=null?` · mag ${o.mag}`:''}</span></div>${links.length>1?`<div class="ss-wl">Telescopius: ${links.join(' · ')}</div>`:''}<div class="ss-note">${esc(o.notes)}</div></div>`;
   if(!r.visible) return `<div class="ss-row ss-off" role="row">${head}<div class="ss-c-se"><span class="ss-lbl">Season</span><span class="ss-mono">Not visible</span></div><div class="ss-c-pk"></div><div class="ss-c-win"></div><div class="ss-c-alt"><span class="ss-lbl">Max alt</span><span class="ss-mono">${r.maxalt}°</span></div><div class="ss-c-int"><span class="ss-int">—</span></div></div>`;
   const tags=(r.maxalt<30?'<span class="ss-tag ss-low">low</span>':'')+(r.maxalt>80?'<span class="ss-tag ss-zen">near zenith</span>':'');
   const w=r.windows.length?r.windows.map((x,i)=>`<span class="ss-pill ${i===0&&r.winStart<10?'ss-now':''}">${esc(x)}</span>`).join(''):'<span class="ss-mono ss-dim">No moon-dark run</span>';
