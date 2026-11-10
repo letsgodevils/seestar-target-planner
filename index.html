@@ -9,17 +9,17 @@
 <meta name="color-scheme" content="dark">
 <meta name="author" content="Jeff Boerio">
 <title>Seestar Target Planner</title>
-<link rel="stylesheet" href="css/planner.css?v=e4bff42">
+<link rel="stylesheet" href="css/planner.css?v=dc5f2b4">
 <!-- Settings read by js/planner.js. Change the default location, list or telescope here. -->
 <script type="application/json" id="ss-config">
 {
-  "lists": "data/targets.json",
-  "cities": "data/cities.json",
-  "catalog": "data/catalog.json",
-  "defaults": { "name": "Rockwood, TX", "lat": 31.4935, "lon": -99.3706, "list": "galaxies", "scope": "S30P" }
+  "lists": "data/targets.json?v=1.2.0",
+  "cities": "data/cities.json?v=1.2.0",
+  "catalog": "data/catalog.json?v=1.2.0",
+  "defaults": { "name": "Rockwood, TX", "lat": 31.4935, "lon": -99.3706, "list": "galaxies", "scope": "S30P", "thr": 25 }
 }
 </script>
-<script defer src="js/planner.js?v=e4bff42"></script>
+<script defer src="js/planner.js?v=dc5f2b4"></script>
 </head>
 <body>
 <main>
@@ -27,6 +27,7 @@
 <header class="ss-toprow">
   <h1 class="ss-h1">Top 50 <span id="ss-hKind">Galaxies</span></h1>
   <div class="ss-segs">
+    <button type="button" id="ss-redBtn" class="ss-redbtn" aria-pressed="false" title="Night-vision mode: red light only">● Red light</button>
     <div class="ss-seg" role="group" aria-label="Telescope" id="ss-scopeSeg">
       <button type="button" data-s="S30">S30</button><button type="button" data-s="S30P">S30 Pro</button><button type="button" data-s="S50">S50</button><button type="button" data-s="S50P">S50 Pro</button>
     </div>
@@ -35,7 +36,7 @@
     </div>
   </div>
 </header>
-<p class="ss-sub">Dates are computed for your location over the next 12 months: astronomical darkness, target above 25° (lower for targets that never get that high). Dark windows are runs of nights when the Moon is down or under 25% lit while the target is up.</p>
+<p class="ss-sub">Dates are computed for your location over the next 12 months: astronomical darkness, target above <span class="ss-thrv">25°</span> (lower for targets that never get that high). Dark windows are runs of nights when, while the target is up, the Moon is down, under 25% lit, or far enough away: at least 60° for dual-band targets and 90° for UV/IR targets.</p>
 
 <form class="ss-loc" id="ss-locForm" aria-label="Observing location">
   <div class="ss-favs" id="ss-favs" hidden></div>
@@ -70,14 +71,16 @@
   <input id="ss-q" type="search" placeholder="Filter this list" aria-label="Filter the top 50 list">
   <label for="ss-mo">Good in</label>
   <select id="ss-mo"><option value="">Any month</option></select>
+  <label for="ss-thr">Min altitude</label>
+  <select id="ss-thr"><option value="10">10°</option><option value="15">15°</option><option value="20">20°</option><option value="25" selected>25°</option><option value="30">30°</option><option value="35">35°</option><option value="40">40°</option><option value="45">45°</option><option value="50">50°</option></select>
   <label for="ss-sort">Sort</label>
-  <select id="ss-sort"><option value="rank">Rank</option><option value="win" selected>Next dark window</option><option value="peak">Peak date</option><option value="int">Integration</option><option value="fit">Framing</option></select>
+  <select id="ss-sort"><option value="rank">Rank</option><option value="win" selected>Next dark window</option><option value="peak">Peak date</option><option value="int">Integration</option><option value="fit">Framing</option><option value="alt">Max altitude</option><option value="moon">Moon distance</option></select>
   <button type="button" id="ss-favOnly" class="ss-favonly" aria-pressed="false">☆ Favorites</button>
   <span class="ss-count" id="ss-count"></span>
 </div>
 
 <div role="table" aria-label="Top 50 targets">
-  <div class="ss-head" role="row"><span>#</span><span>Target</span><span>Season</span><span>Peak</span><span>Next dark windows</span><span>Max alt</span><span>Integration</span></div>
+  <div class="ss-head" role="row"><span>#</span><span>Target</span><span>Season</span><span>Peak</span><span>Next dark windows</span><span>Max alt (dark)</span><span>Integration</span></div>
   <div id="ss-rows"><p class="ss-busy">Loading…</p></div>
 </div>
 <div class="ss-pgbar">
@@ -85,7 +88,7 @@
   <div class="ss-per"><label for="ss-per">Show</label>
     <select id="ss-per"><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="0">All</option></select><span>per page</span></div>
 </div>
-<noscript><p class="ss-err">COM_SEESTAR_NOSCRIPT</p></noscript>
+<noscript><p class="ss-err">The Seestar Target Planner needs JavaScript to calculate target visibility.</p></noscript>
 
 <section class="ss-tips">
   <h2 class="ss-h2">Integration notes</h2>
@@ -96,10 +99,16 @@
     <li id="ss-tipInteg">Integration times are set for the S30 Pro.</li>
     <li id="ss-tipBatt">Split long totals across several nights in the same dark window and stack them. Battery is about 6 h, so plan one or two targets per night.</li>
     <li>Targets tagged “near zenith” climb past 80°, where alt-az tracking struggles. Image them a couple of hours either side of transit, or use EQ mode on a wedge.</li>
-    <li>Amber “low” targets never clear 30° from this location. Image them within an hour or so of transit with a clean horizon in their direction.</li>
+    <li>Max alt shows how high a target climbs during full darkness <b>tonight</b> (this is what the Max altitude sort uses), with its best for the next 12 months underneath as “year”. Neither counts daylight or twilight.</li>
+    <li>Amber “low” targets never clear <span class="ss-thrlow">30°</span> in darkness from this location. Image them within an hour or so of transit with a clean horizon in their direction.</li>
     <li>Greyed-out targets never rise high enough to image from this location.</li>
+    <li><b>Red light:</b> the ● Red light button turns the page into red-only light to protect your night vision at the telescope. Your phone's own menus and the browser bar aren't affected; for full coverage also use the phone's red color filter (iPhone: Settings → Accessibility → Display &amp; Text Size → Color Filters → Color Tint).</li>
+    <li><b>Moon distance:</b> a bright Moon is acceptable when it stays well away from the target: at least 60° with the dual-band filter, which blocks most moonlight, and at least 90° with the UV/IR-cut filter. Dark windows count those nights, and each chart says how close the Moon comes tonight. The Moon distance sort lists the safest targets tonight first.</li>
+    <li>The <b>Min altitude</b> setting (default 25°) is the lowest altitude counted as imaging time. It changes the seasons, peak nights, dark windows, the chart's threshold line and the hours in darkness. Targets that never climb at least 10° above it use a threshold 8° below their highest point instead.</li>
+    <li id="ss-tipChart">Each chart shows the target's altitude tonight (red), the Moon (grey dashed) and the sky from daylight to full dark. Hover or drag across a chart to read the altitude, direction and time at any moment.</li>
   </ul>
 </section>
+<button type="button" id="ss-toTop" class="ss-totop" aria-label="Back to top">↑ Top</button>
 <p class="ss-foot">Season = months averaging at least half of the target's best-night dark hours. Peak = the night the target is up longest in full darkness. Dates are local calendar nights, labeled by the evening date. Sun and Moon use low-precision formulas, good to a few minutes. Positions J2000; sizes and magnitudes are approximate. Lookup data: OpenNGC by Mattia Verga (CC BY-SA 4.0). Place search © OpenStreetMap contributors, via Nominatim.</p>
 </div>
 </main>

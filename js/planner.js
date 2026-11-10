@@ -29,14 +29,16 @@ function prepSite(lat,lon,start){
   for(let n=0;n<NIGHTS;n++){
     const day=new Date(Date.UTC(y0,m0,d0+n)); dates.push(day);
     const jd0=(day.getTime()+(12-lon/15)*3600e3)/86400000+2440587.5;
-    const ls=[], ok=[];
+    // For each dark sample: sidereal time, whether the Moon is harmless anyway (down or under 25% lit),
+    // and the Moon's position so each target can check its distance from it.
+    const ls=[], ok=[], mra=[], msd=[], mcd=[];
     for(let k=0;k<144;k++){
       const jd=jd0+k*STEP/1440, l=lstOf(jd,lon), s=sunPos(jd);
       if(altOf(s.ra,s.dec,lat,l)>-18) continue;
       const mo=moonPos(jd), ma=altOf(mo.ra,mo.dec,lat,l)-mo.par, kill=(1-cosD(mo.bet)*cosD(mo.lam-s.lam))/2;
-      ls.push(l); ok.push(ma<0||kill<0.25);
+      ls.push(l); ok.push(ma<0||kill<0.25); mra.push(mo.ra); msd.push(sinD(mo.dec)); mcd.push(cosD(mo.dec));
     }
-    nights.push({ls,ok});
+    nights.push({ls,ok,mra,msd,mcd});
     const mm=moonPos(jd0+0.5), ss=sunPos(jd0+0.5); illum.push((1-cosD(mm.bet)*cosD(mm.lam-ss.lam))/2);
   }
   const newMoons=[]; for(let n=1;n<NIGHTS-1;n++) if(illum[n]<=illum[n-1]&&illum[n]<illum[n+1]&&illum[n]<0.05) newMoons.push(fmtD(dates[n]));
@@ -44,11 +46,24 @@ function prepSite(lat,lon,start){
 }
 const fmtD=d=>`${MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
 const fmtW=(a,b)=>a.getTime()===b.getTime()?`${fmtD(a)}, ${a.getUTCFullYear()}`:a.getUTCMonth()===b.getUTCMonth()?`${fmtD(a)}–${b.getUTCDate()}, ${b.getUTCFullYear()}`:`${fmtD(a)} – ${fmtD(b)}, ${b.getUTCFullYear()}`;
-function evalTarget(S,ra,dec){
-  const maxalt=90-Math.abs(S.lat-dec), thr=maxalt>=35?25:Math.max(12,maxalt-8);
+// Imaging threshold (Min altitude): visitor setting, default 25°. Targets that never get 10° above it
+// use a threshold 8° below their highest point (never below 12°, never above the setting).
+let THR=25;
+const thrFor=maxalt=>maxalt>=THR+10?THR:Math.min(THR,Math.max(12,maxalt-8));
+// Moon distance rule: a bright Moon above the horizon is acceptable when it is far enough from the target:
+// at least 60° with the dual-band (light-pollution) filter, at least 90° with the UV/IR-cut filter.
+const moonSepFor=f=>f==='Dual-band'?60:90;
+function evalTarget(S,ra,dec,filter){
+  const cosReq=cosD(moonSepFor(filter)), tsd=sinD(dec), tcd=cosD(dec);
+  // Max altitude = highest point reached during astronomical darkness (Sun below -18°) over the 12 months,
+  // not the geometric culmination, which can fall in daylight or twilight.
+  const sd=sinD(dec)*sinD(S.lat), cd=cosD(dec)*cosD(S.lat);
+  let maxV=-1;
+  S.nights.forEach(nt=>{ for(let i=0;i<nt.ls.length;i++){ const v=sd+cd*cosD(nt.ls[i]-ra); if(v>maxV) maxV=v; } });
+  const maxalt=Math.asin(Math.max(-1,Math.min(1,maxV)))/RAD, thr=thrFor(maxalt);
   if(maxalt<12) return {visible:false,maxalt:Math.round(maxalt)};
-  const tot=new Float32Array(NIGHTS), mf=new Float32Array(NIGHTS), sd=sinD(dec)*sinD(S.lat), cd=cosD(dec)*cosD(S.lat), st=sinD(thr);
-  S.nights.forEach((nt,n)=>{for(let i=0;i<nt.ls.length;i++){ if(sd+cd*cosD(nt.ls[i]-ra)>=st){tot[n]+=STEP/60; if(nt.ok[i]) mf[n]+=STEP/60;} }});
+  const tot=new Float32Array(NIGHTS), mf=new Float32Array(NIGHTS), st=sinD(thr);
+  S.nights.forEach((nt,n)=>{for(let i=0;i<nt.ls.length;i++){ if(sd+cd*cosD(nt.ls[i]-ra)>=st){tot[n]+=STEP/60; if(nt.ok[i]||tsd*nt.msd[i]+tcd*nt.mcd[i]*cosD(ra-nt.mra[i])<=cosReq) mf[n]+=STEP/60;} }});
   let pi=0; for(let n=1;n<NIGHTS;n++) if(tot[n]>tot[pi]) pi=n;
   const peakH=tot[pi]; if(peakH<0.5) return {visible:false,maxalt:Math.round(maxalt)};
   const sums=Array(12).fill(0), cnt=Array(12).fill(0);
@@ -159,6 +174,15 @@ function favInit(){
 function setFields(l){ $('lat').value=(+l.lat).toFixed(4); $('lon').value=(+l.lon).toFixed(4); const i=CITIES.findIndex(c=>c[0]===l.name); $('city').value=i>=0?i:''; customName=i>=0?null:(l.name||null); }
 function setKind(k){ kind=k; page=1; $('bG').setAttribute('aria-pressed',String(k==='galaxies')); $('bN').setAttribute('aria-pressed',String(k==='nebulae')); $('hKind').textContent=k==='galaxies'?'Galaxies':'Nebulae'; store.set('seestarKind',k); render(); }
 function inSeason(s,m){ if(s==="Year-round")return true; const [a,b]=s.split('–').map(x=>MON.indexOf(x)+1); const e=b||a; return a<=e?(m>=a&&m<=e):(m>=a||m<=e); }
+function recompute(){
+  if(!S) return;
+  for(const k of ['galaxies','nebulae']) R[k]=LISTS[k].map(t=>evalTarget(S,raDeg(t.ra),decDeg(t.dec),t.filter));
+}
+function setThr(v){
+  v=+v; if(!(v>=10&&v<=50)||v%5) v=25; THR=v; $('thr').value=String(v);
+  document.querySelectorAll('#ss-app .ss-thrv').forEach(e=>e.textContent=v+'°');
+  document.querySelectorAll('#ss-app .ss-thrlow').forEach(e=>e.textContent=(v+5)+'°');
+}
 function run(){
   const lat=parseFloat($('lat').value), lon=parseFloat($('lon').value);
   if(!(lat>=-90&&lat<=90)||!(lon>=-180&&lon<=180)){ $('err').textContent='Enter latitude between -90 and 90 and longitude between -180 and 180 (west is negative).'; return; }
@@ -169,7 +193,7 @@ function run(){
   $('rows').innerHTML='<p class="ss-busy">Calculating…</p>';
   setTimeout(()=>{
     S=prepSite(lat,lon,start); R={}; page=1;
-    for(const k of ['galaxies','nebulae']) R[k]=LISTS[k].map(t=>evalTarget(S,raDeg(t.ra),decDeg(t.dec)));
+    recompute();
     $('fLoc').textContent=loc.name;
     $('fLL').textContent=`${Math.abs(lat).toFixed(2)}°${lat>=0?'N':'S'}, ${Math.abs(lon).toFixed(2)}°${lon>=0?'E':'W'}`;
     const end=new Date(start); end.setDate(end.getDate()+364);
@@ -235,35 +259,115 @@ function tsLinks(o){
   return out.map(x=>[x[0],tsUrl(x[1])]);
 }
 // ---- Tonight's altitude chart (per target). Time axis is local mean solar time at the chosen site.
-const CW=300, CH=80, ALT0=-5, ALT1=90, NSAMP=114, TSTEP=10; // 15:00 -> 10:00, 10-minute steps
-function tonightGrid(){
-  if(S._t) return S._t;
-  const jdNow=Date.now()/86400000+2440587.5, n=Math.floor(jdNow+S.lon/360), jd0=n-S.lon/360+3/24;
-  const lst=[], sun=[];
-  for(let k=0;k<NSAMP;k++){ const jd=jd0+k*TSTEP/1440, l=lstOf(jd,S.lon), sp=sunPos(jd); lst.push(l); sun.push(altOf(sp.ra,sp.dec,S.lat,l)); }
-  return S._t={lst,sun,nowF:(jdNow-jd0)/(NSAMP*TSTEP/1440)};
+// ---- Tonight's altitude chart. Times are shown in the device's time zone.
+const CW=300, CHT=70, A0=-10, A1=90, CSTEP=10, NIGHT_H=19;
+const CMP=['N','NE','E','SE','S','SW','W','NW'];
+const fmtClock=ms=>new Date(ms).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+const azOf=(ra,dec,lat,l)=>{ const H=l-ra; return norm(Math.atan2(sinD(H),cosD(H)*sinD(lat)-Math.tan(dec*RAD)*cosD(lat))/RAD+180); };
+let nightCache=null;
+function tonight(){
+  // "Tonight" runs from 3 pm to 10 am local solar time at the site, starting from the most recent site noon.
+  const now=Date.now(), off=S.lon/15*3600e3, lmt=new Date(now+off);
+  let noon=Date.UTC(lmt.getUTCFullYear(),lmt.getUTCMonth(),lmt.getUTCDate(),12)-off;
+  if(now<noon) noon-=864e5;
+  const key=`${S.lat},${S.lon},${noon}`;
+  if(nightCache&&nightCache.key===key) return nightCache;
+  const t0=noon+3*3600e3, n=Math.round(NIGHT_H*60/CSTEP)+1, ls=[], sun=[], moon=[], mpos=[];
+  let illum=0;
+  for(let k=0;k<n;k++){
+    const jd=(t0+k*CSTEP*6e4)/864e5+2440587.5, l=lstOf(jd,S.lon), sp=sunPos(jd), mp=moonPos(jd);
+    ls.push(l); sun.push(altOf(sp.ra,sp.dec,S.lat,l)); moon.push(altOf(mp.ra,mp.dec,S.lat,l)-mp.par); mpos.push([mp.ra,mp.dec,(1-cosD(mp.bet)*cosD(mp.lam-sp.lam))/2]);
+    if(k===Math.floor(n/2)) illum=(1-cosD(mp.bet)*cosD(mp.lam-sp.lam))/2;
+  }
+  // Sky background: merge runs of the same twilight phase into one band.
+  const tone=a=>a>-0.83?0:a>-6?1:a>-12?2:a>-18?3:4, cols=['#1d3150','#2a2443','#1a1b33','#121424','#07080d'], dx=CW/(n-1);
+  let bands='', st=0;
+  for(let k=1;k<=n;k++){ if(k===n||tone(sun[k])!==tone(sun[st])){ const x0=Math.max(0,(st-0.5)*dx), x1=Math.min(CW,(k-0.5)*dx); bands+=`<rect x="${x0.toFixed(1)}" y="0" width="${(x1-x0).toFixed(1)}" height="${CHT}" fill="${cols[tone(sun[st])]}"/>`; st=k; } }
+  let ticks='';
+  for(let ms=Math.ceil(t0/18e5)*18e5; ms<=t0+NIGHT_H*36e5; ms+=18e5){
+    const d=new Date(ms); if(d.getMinutes()!==0||d.getHours()%3!==0) continue;
+    const x=(ms-t0)/(NIGHT_H*36e5)*CW; if(x<14||x>CW-14) continue;
+    ticks+=`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${CHT}" y2="${CHT+2.5}" stroke="#5c6070" stroke-width=".7"/><text x="${x.toFixed(1)}" y="${CHT+10}" text-anchor="middle" font-size="7.5" fill="#8b90a3">${d.toLocaleTimeString([], {hour:'numeric'})}</text>`;
+  }
+  return nightCache={key,t0,n,ls,sun,moon,mpos,illum,bands,ticks};
 }
-const CMP=["north","north-east","east","south-east","south","south-west","west","north-west"];
-function altChart(o){
-  if(!S) return '';
-  const ra=o.raD!=null?+o.raD:(o.ra?raDeg(o.ra):NaN), dec=o.decD!=null?+o.decD:(o.dec?decDeg(o.dec):NaN);
-  if(isNaN(ra)||isNaN(dec)) return '';
-  const T=tonightGrid(), dx=CW/(NSAMP-1), yOf=a=>CH-(Math.max(ALT0,a)-ALT0)/(ALT1-ALT0)*CH;
-  const alts=T.lst.map(l=>altOf(ra,dec,S.lat,l));
-  const THR=25; let best=0, above=0;
-  alts.forEach((a,k)=>{ if(a>alts[best]) best=k; if(a>=THR&&T.sun[k]<-18) above+=TSTEP; });
-  const bands=T.sun.map((a,k)=>`<rect x="${(k*dx-dx/2).toFixed(1)}" y="0" width="${(dx+0.6).toFixed(1)}" height="${CH}" fill="${a>-0.8?'#24486f':a>-6?'#4a3a63':a>-12?'#27284a':a>-18?'#14172a':'#08090f'}"/>`).join('');
-  const pts=alts.map((a,k)=>`${k?'L':'M'}${(k*dx).toFixed(1)},${yOf(a).toFixed(1)}`).join('');
-  const above0=alts.some(a=>a>0);
-  const azs=T.lst.map(l=>{const H=l-ra; return Math.round(((Math.atan2(sinD(H),cosD(H)*sinD(S.lat)-Math.tan(dec*RAD)*cosD(S.lat))/RAD+180)%360+360)%360);});
-  const pk=alts[best]>0, px=best*dx, py=yOf(alts[best]);
-  const hh=Math.floor(above/60), mm=String(above%60).padStart(2,'0');
-  const cap=pk?`Tonight · peak alt ${Math.round(alts[best])}° ${CMP[Math.round(azs[best]/45)%8]} · ${String(hh).padStart(2,'0')}:${mm} hr above ${THR}° in the dark`:'';
-  const peak=`<line class="ss-cur" x1="${px.toFixed(1)}" x2="${px.toFixed(1)}" y1="0" y2="${CH}" stroke="#fff" stroke-width=".6" stroke-dasharray="2 2" opacity=".55"/><circle class="ss-dot" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#fff" stroke="#ff5c7a" stroke-width="1.6"${pk?'':' visibility="hidden"'}/><g class="ss-tip"><rect x="0" y="0" width="80" height="17" rx="5" fill="#0d0f17" stroke="#3a3f55" stroke-width=".6"/><text x="40" y="11.5" text-anchor="middle" font-size="9" fill="#d8dbe6" font-family="inherit"></text></g>`;
-  const now=(T.nowF>0&&T.nowF<1)?`<line x1="${(T.nowF*CW).toFixed(1)}" y1="0" x2="${(T.nowF*CW).toFixed(1)}" y2="${CH}" stroke="#3aa0ff" stroke-width=".9" stroke-dasharray="3 2"/><rect x="${(T.nowF*CW-15).toFixed(1)}" y="2" width="30" height="12" rx="6" fill="#1597b8"/><text x="${(T.nowF*CW).toFixed(1)}" y="10.6" text-anchor="middle" font-size="7.8" font-weight="700" fill="#fff" font-family="inherit">NOW</text>`:'';
-  let ticks=''; for(let h=18;h<=33;h+=3){ const x=((h-15)*60/TSTEP)*dx; if(x<8||x>CW-8) continue; ticks+=`<text x="${x.toFixed(1)}" y="${CH+12}" text-anchor="middle" font-size="8.2" fill="#8b90a3" font-family="inherit">${String(h%24).padStart(2,'0')}:00</text>`; }
-  return `<div class="ss-altw"><svg class="ss-alt" data-a="${alts.map(v=>v.toFixed(1)).join(',')}" data-z="${azs.join(',')}" data-best="${best}" data-pk="${pk?1:0}" viewBox="-4 -4 ${CW+8} ${CH+19}" role="img" aria-label="Altitude tonight"><defs><clipPath id="ss-cp"><rect width="${CW}" height="${CH}" rx="5"/></clipPath></defs><g clip-path="url(#ss-cp)">${bands}<line x1="0" x2="${CW}" y1="${yOf(THR).toFixed(1)}" y2="${yOf(THR).toFixed(1)}" stroke="#7d869f" stroke-width=".7" stroke-dasharray="3 3" opacity=".7"/>${above0?`<path d="${pts}" fill="none" stroke="#ff5c7a" stroke-width="1.8" stroke-linejoin="round"/>`:''}${now}</g>${peak}${ticks}</svg>${cap?`<div class="ss-altcap">${cap}</div>`:'<div class="ss-altcap">Below the horizon tonight</div>'}</div>`;
+// Tonight: closest approach of a bright, risen Moon during the target's usable dark time.
+function moonTonight(ra,dec,filter){
+  if(!S||!isFinite(ra)||!isFinite(dec)) return null;
+  const N=tonight(), maxalt=90-Math.abs(S.lat-dec), thr=thrFor(maxalt), req=moonSepFor(filter);
+  let usable=false, minSep=null;
+  for(let k=0;k<N.n;k++){
+    if(N.sun[k]>-18||altOf(ra,dec,S.lat,N.ls[k])<thr) continue;
+    usable=true;
+    const [mra,mdec,ill]=N.mpos[k]; if(N.moon[k]<0||ill<0.25) continue;
+    const c=sinD(dec)*sinD(mdec)+cosD(dec)*cosD(mdec)*cosD(ra-mra), sep=Math.acos(Math.max(-1,Math.min(1,c)))/RAD;
+    if(minSep===null||sep<minSep) minSep=sep;
+  }
+  if(!usable) return {usable:false,req};
+  return minSep===null?{usable:true,clear:true,req}:{usable:true,clear:false,sep:Math.round(minSep),ok:minSep>=req,req};
 }
+function moonLine(m,filter){
+  if(!m||!m.usable) return '';
+  const f=filter==='Dual-band'?'dual-band':'UV/IR';
+  if(m.clear) return `<div class="ss-altmoon ss-ok">Moon: no interference tonight (down or under 25% lit)</div>`;
+  return m.ok?`<div class="ss-altmoon ss-ok">Moon: at least ${m.sep}° away tonight · OK for ${f} (needs ${m.req}°)</div>`
+             :`<div class="ss-altmoon ss-bad">Moon: comes within ${m.sep}° tonight · too close for ${f} (needs ${m.req}°)</div>`;
+}
+function tonightMax(ra,dec){
+  if(!S||!isFinite(ra)||!isFinite(dec)) return null;
+  const N=tonight(); let m=null;
+  for(let k=0;k<N.n;k++){ if(N.sun[k]>-18) continue; const a=altOf(ra,dec,S.lat,N.ls[k]); if(m===null||a>m) m=a; }
+  return m; // null if there is no full darkness tonight
+}
+const raOf=o=>o.raD!=null?+o.raD:raDeg(o.ra), decOf=o=>o.decD!=null?+o.decD:decDeg(o.dec);
+function altChart(ra,dec,filter){
+  if(!S||!isFinite(ra)||!isFinite(dec)) return '';
+  const N=tonight(), n=N.n, dx=CW/(n-1), y=a=>(A1-Math.max(A0,Math.min(A1,a)))/(A1-A0)*CHT;
+  const maxalt=90-Math.abs(S.lat-dec), thr=thrFor(maxalt);
+  const alts=N.ls.map(l=>altOf(ra,dec,S.lat,l));
+  // Peak = highest point during astronomical darkness, which is what matters for imaging.
+  let best=-1, good=0;
+  alts.forEach((a,k)=>{ if(N.sun[k]<=-18){ if(best<0||a>alts[best]) best=k; if(a>=thr) good+=CSTEP; } });
+  if(best<0) best=alts.indexOf(Math.max(...alts));
+  const path=arr=>arr.map((a,k)=>`${k?'L':'M'}${(k*dx).toFixed(1)},${y(a).toFixed(1)}`).join('');
+  const nowF=(Date.now()-N.t0)/(NIGHT_H*36e5);
+  const now=nowF>0&&nowF<1?`<line x1="${(nowF*CW).toFixed(1)}" x2="${(nowF*CW).toFixed(1)}" y1="0" y2="${CHT}" stroke="#4aa8ff" stroke-width=".9" stroke-dasharray="3 2"/><text x="${(nowF*CW+2).toFixed(1)}" y="8" font-size="7" font-weight="700" fill="#4aa8ff">now</text>`:'';
+  const up=alts[best]>0&&N.sun[best]<=-18, bx=best*dx, by=y(alts[best]);
+  const az=alts.map((a,k)=>Math.round(azOf(ra,dec,S.lat,N.ls[k])));
+  const moonPct=Math.round(N.illum*100);
+  const cap=up?`Tonight: highest in darkness ${Math.round(alts[best])}° ${CMP[Math.round(az[best]/45)%8]} at ${fmtClock(N.t0+best*CSTEP*6e4)} · ${(good/60).toFixed(1)} h above ${Math.round(thr)}° in darkness · Moon ${moonPct}%`
+               :`Not above the horizon in darkness tonight · Moon ${moonPct}%`;
+  return `<div class="ss-altw"><svg class="ss-altc" viewBox="0 0 ${CW} ${CHT+13}" role="img" aria-label="${esc(cap)}" data-t0="${N.t0}" data-n="${n}" data-best="${best}" data-up="${up?1:0}" data-a="${alts.map(a=>a.toFixed(1)).join(',')}" data-z="${az.join(',')}">
+${N.bands}<line x1="0" x2="${CW}" y1="${y(thr).toFixed(1)}" y2="${y(thr).toFixed(1)}" stroke="#7d869f" stroke-width=".7" stroke-dasharray="3 3" opacity=".75"/><line x1="0" x2="${CW}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="#3a3f55" stroke-width=".6"/>
+<path d="${path(N.moon)}" fill="none" stroke="#9aa0b3" stroke-width="1" stroke-dasharray="2 2" opacity=".6"/>${up?`<path d="${path(alts)}" fill="none" stroke="#ff5a4e" stroke-width="1.8" stroke-linejoin="round"/>`:''}${now}
+<line class="ss-acur" x1="${bx.toFixed(1)}" x2="${bx.toFixed(1)}" y1="0" y2="${CHT}" stroke="#fff" stroke-width=".6" stroke-dasharray="2 2" opacity="0"/><circle class="ss-adot" cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="3" fill="#fff" stroke="#ff5a4e" stroke-width="1.6" visibility="${up?'visible':'hidden'}"/>
+${N.ticks}</svg><div class="ss-altcap" data-def="${esc(cap)}">${esc(cap)}</div>${moonLine(moonTonight(ra,dec,filter),filter)}</div>`;
+}
+// Hover or drag across a chart to read altitude, direction and time.
+(function(){
+  let active=null;
+  const reset=sv=>{ const w=sv.parentNode, k=+sv.dataset.best, dx=CW/(+sv.dataset.n-1), a=+sv.dataset.a.split(',')[k];
+    w.classList.remove('ss-on'); w.querySelector('.ss-altcap').textContent=w.querySelector('.ss-altcap').dataset.def;
+    sv.querySelector('.ss-acur').setAttribute('opacity','0');
+    const d=sv.querySelector('.ss-adot'); d.setAttribute('cx',(k*dx).toFixed(1)); d.setAttribute('cy',((A1-Math.max(A0,Math.min(A1,a)))/(A1-A0)*CHT).toFixed(1)); d.setAttribute('visibility',sv.dataset.up==='1'?'visible':'hidden'); };
+  document.addEventListener('pointermove',e=>{
+    const sv=e.target.closest?e.target.closest('.ss-altc'):null;
+    if(active&&active!==sv){ reset(active); active=null; }
+    if(!sv) return;
+    active=sv;
+    if(!sv._a){ sv._a=sv.dataset.a.split(',').map(Number); sv._z=sv.dataset.z.split(',').map(Number); }
+    const n=+sv.dataset.n, dx=CW/(n-1), r=sv.getBoundingClientRect(), k=Math.max(0,Math.min(n-1,Math.round((e.clientX-r.left)/r.width*CW/dx)));
+    const a=sv._a[k], x=(k*dx).toFixed(1), t=fmtClock(+sv.dataset.t0+k*CSTEP*6e4);
+    sv.querySelector('.ss-acur').setAttribute('x1',x); sv.querySelector('.ss-acur').setAttribute('x2',x); sv.querySelector('.ss-acur').setAttribute('opacity','.6');
+    const d=sv.querySelector('.ss-adot'); d.setAttribute('cx',x); d.setAttribute('cy',((A1-Math.max(A0,Math.min(A1,a)))/(A1-A0)*CHT).toFixed(1)); d.setAttribute('visibility','visible');
+    sv.parentNode.classList.add('ss-on');
+    sv.parentNode.querySelector('.ss-altcap').textContent= a>0?`${t} · altitude ${Math.round(a)}° · ${CMP[Math.round(sv._z[k]/45)%8]}`:`${t} · below the horizon`;
+  });
+  const off=()=>{ if(active){ reset(active); active=null; } };
+  document.addEventListener('pointercancel',off);
+  document.addEventListener('pointerup',e=>{ if(e.pointerType!=='mouse') off(); });
+  document.documentElement.addEventListener('mouseleave',off);
+})();
 let tFavs=null, favOnly=false;
 function tfGet(){ if(!tFavs){ try{ const a=JSON.parse(store.get('seestarFavTargets')||'[]'); tFavs=new Set(Array.isArray(a)?a:[]); }catch(e){ tFavs=new Set(); } } return tFavs; }
 function tfSave(){ store.set('seestarFavTargets',JSON.stringify([...tfGet()])); }
@@ -290,13 +394,13 @@ function rowHTML(o,rank,r){
   const head=`<span class="ss-rk">${rank}${starBtn(o.name)}</span>
 <div class="ss-c-nm"><div class="ss-nm">${nameHTML}${flt}${fit}${simHTML}</div><div class="ss-mem">${o.typ?`<span class="ss-typ">${esc(o.typ)}</span> · `:''}${esc(o.members)} · <span class="ss-mono">${esc(size)}${/\d$/.test(String(size))?'′':''}${o.mag!=null?` · mag ${o.mag}`:''}</span></div>${links.length>1?`<div class="ss-wl">Telescopius: ${links.join(' · ')}</div>`:''}<div class="ss-note">${esc(o.notes)}</div></div>`;
   if(!r.visible) return `<div class="ss-row ss-off" role="row">${head}<div class="ss-c-se"><span class="ss-lbl">Season</span><span class="ss-mono">Not visible</span></div><div class="ss-c-pk"></div><div class="ss-c-win"></div><div class="ss-c-alt"><span class="ss-lbl">Max alt</span><span class="ss-mono">${r.maxalt}°</span></div><div class="ss-c-int"><span class="ss-int">—</span></div></div>`;
-  const tags=(r.maxalt<30?'<span class="ss-tag ss-low">low</span>':'')+(r.maxalt>80?'<span class="ss-tag ss-zen">near zenith</span>':'');
+  const tags=(r.maxalt<THR+5?'<span class="ss-tag ss-low">low</span>':'')+(r.maxalt>80?'<span class="ss-tag ss-zen">near zenith</span>':'');
   const w=r.windows.length?r.windows.map((x,i)=>`<span class="ss-pill ${i===0&&r.winStart<10?'ss-now':''}">${esc(x)}</span>`).join(''):'<span class="ss-mono ss-dim">No moon-dark run</span>';
   return `<div class="ss-row" role="row">${head}
 <div class="ss-c-se"><span class="ss-lbl">Season</span><span class="ss-mono">${r.season}</span></div>
 <div class="ss-c-pk"><span class="ss-lbl">Peak</span><span class="ss-mono">${r.peak}</span><span class="ss-mono ss-dim">${r.peakH} h</span></div>
-<div class="ss-c-win"><span class="ss-lbl">Dark</span><div class="ss-win">${w}</div>${altChart(o)}</div>
-<div class="ss-c-alt"><span class="ss-lbl">Max alt</span><span class="ss-mono">${r.maxalt}°</span>${tags}</div>
+<div class="ss-c-win"><span class="ss-lbl">Dark</span><div class="ss-win">${w}</div>${altChart(raOf(o),decOf(o),o.filter)}</div>
+<div class="ss-c-alt"><span class="ss-lbl">Max alt</span>${(()=>{ const t=tonightMax(raOf(o),decOf(o)); return t===null?'<span class="ss-mono">—</span><span class="ss-tag ss-zen">no full dark tonight</span>':t>0?`<span class="ss-mono">${Math.round(t)}°</span><span class="ss-tag ss-zen">tonight</span>`:'<span class="ss-mono">—</span><span class="ss-tag ss-zen">below horizon tonight</span>'; })()}<span class="ss-tag ss-zen">year ${r.maxalt}°</span>${tags}</div>
 <div class="ss-c-int"><span class="ss-int">${esc(scaleInteg(o.integ))}</span>${o.est?'<span class="ss-tag ss-zen">estimate</span>':''}</div></div>`;
 }
 function render(){
@@ -304,7 +408,7 @@ function render(){
   const L=LISTS[kind], RR=R[kind];
   const q=$('q').value.trim().toLowerCase(), m=+$('mo').value, s=$('sort').value;
   let rows=L.map((t,i)=>({...t,rank:i+1,r:RR[i]})).filter(o=>(!favOnly||tfGet().has(o.name))&&(!q||(o.name+' '+o.members).toLowerCase().includes(q))&&(!m||(o.r.visible&&inSeason(o.r.season,m))));
-  const key={fit:o=>{const x=framing(o.frame);return x?x.k*10-x.f:99;},rank:o=>o.rank,win:o=>o.r.visible?o.r.winStart:1e5,peak:o=>o.r.visible?o.r.peakKey:1e5,int:o=>parseFloat(o.integ)};
+  const key={moon:o=>{ if(!o.r.visible) return 1e5; const m=moonTonight(raOf(o),decOf(o),o.filter); if(!m||!m.usable) return 5e4; return m.clear?-1000:(m.ok?0:1000)-m.sep; },alt:o=>{ if(!o.r.visible) return 1e5; const t=tonightMax(raOf(o),decOf(o)); return t===null||t<=0?1e4-o.r.maxalt:-t; },fit:o=>{const x=framing(o.frame);return x?x.k*10-x.f:99;},rank:o=>o.rank,win:o=>o.r.visible?o.r.winStart:1e5,peak:o=>o.r.visible?o.r.peakKey:1e5,int:o=>parseFloat(o.integ)};
   rows.sort((a,b)=>{const x=key[s](a),y=key[s](b);return x<y?-1:x>y?1:a.rank-b.rank;});
   if(s==='rank') rows.sort((a,b)=>(b.r.visible-a.r.visible)||a.rank-b.rank);
   const total=rows.length, per=+$('per').value||total||1, pages=Math.max(1,Math.ceil(total/per));
@@ -323,7 +427,7 @@ function renderPager(pages,total,from,n){
   h+=`<span class="ss-range">Showing ${from+1}–${from+n} of ${total}</span>`;
   el.innerHTML=h;
 }
-function renderLook(){ if(!S||!look.length) return; $('lookRes').innerHTML=look.map(t=>rowHTML(t,'•',evalTarget(S,t.raD,t.decD))).join(''); }
+function renderLook(){ if(!S||!look.length) return; $('lookRes').innerHTML=look.map(t=>rowHTML(t,'•',evalTarget(S,t.raD,t.decD,t.filter))).join(''); }
 function doLook(){
   const q=$('lookQ').value;
   if(!q.trim()){ $('lookRes').innerHTML=''; return; }
@@ -383,7 +487,21 @@ function doFind(){
     box.innerHTML=`<p class="ss-err">${esc(e&&e.message&&/^Town search/.test(e.message)?e.message:'Town search failed. Check your connection and try again.')}</p>`;
   }).finally(()=>{ geoBusy=false; $('findBtn').disabled=false; });
 }
-function init(){ tfInit(); scrubInit(); chartModalInit();
+// Back-to-top button: appears after scrolling down; returns to the top and moves focus to the heading.
+function initTop(){
+  const b=document.getElementById('ss-toTop'); if(!b) return;
+  let ticking=false;
+  const update=()=>{ b.classList.toggle('ss-show',window.scrollY>600); ticking=false; };
+  window.addEventListener('scroll',()=>{ if(!ticking){ ticking=true; requestAnimationFrame(update); } },{passive:true});
+  b.addEventListener('click',()=>{
+    const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({top:0,behavior:reduce?'auto':'smooth'});
+    const h=document.querySelector('#ss-app .ss-h1'); if(h){ h.setAttribute('tabindex','-1'); h.focus({preventScroll:true}); }
+  });
+  update();
+}
+function init(){
+  initTop(); tfInit(); chartModalInit();
   if(!$('app')) return;
   Promise.all([getJSON(OPT.lists),getJSON(OPT.cities)]).then(([l,c])=>{
     LISTS=l; CITIES=c;
@@ -411,8 +529,15 @@ function init(){ tfInit(); scrubInit(); chartModalInit();
     const k=store.get('seestarKind'); if(k==='galaxies'||k==='nebulae') kind=k;
     $('bG').setAttribute('aria-pressed',String(kind==='galaxies')); $('bN').setAttribute('aria-pressed',String(kind==='nebulae')); $('hKind').textContent=kind==='galaxies'?'Galaxies':'Nebulae';
     document.querySelectorAll('#ss-scopeSeg button').forEach(b=>b.addEventListener('click',()=>setScope(b.dataset.s)));
+    $('thr').addEventListener('input',()=>{ setThr($('thr').value); store.set('seestarThr',$('thr').value); recompute(); page=1; render(); renderLook(); });
+    const st=store.get('seestarThr'); setThr(st!==null?st:(DEF.thr||25));
     const sk=store.get('seestarScope'); if(SCOPES[sk]){ scope=sk; G=scopeGeom(sk); }
+    // Red-light (night-vision) toggle; remembered per browser.
+    (function(){ const b=$('redBtn'); if(!b) return; const set=on=>{ document.documentElement.classList.toggle('red-light',on); b.setAttribute('aria-pressed',String(on)); store.set('seestarRed',on?'1':'0'); };
+      b.addEventListener('click',()=>set(!document.documentElement.classList.contains('red-light')));
+      if(store.get('seestarRed')==='1') set(true); })();
     updateScopeUI();
+    try{ $('tipChart').textContent+=` Chart times use this device's time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}).`; }catch(e){}
     let saved=null; try{ saved=JSON.parse(store.get('seestarLoc')); }catch(e){}
     setFields(saved&&isFinite(saved.lat)&&isFinite(saved.lon)?saved:DEF);
     favInit();
@@ -426,7 +551,7 @@ function chartModalInit(){
   document.addEventListener('click',e=>{
     if(e.target.closest&&e.target.closest('.ss-modal-x')) return close();
     const bd=e.target.closest&&e.target.closest('.ss-modal'); if(bd){ if(e.target===bd) close(); return; }
-    const sv=e.target.closest&&e.target.closest('.ss-alt'); if(!sv) return;
+    const sv=e.target.closest&&e.target.closest('.ss-altc'); if(!sv) return;
     close();
     const row=sv.closest('.ss-row'), nm=row&&row.querySelector('.ss-nm a'), cap=sv.parentNode.querySelector('.ss-altcap');
     const m=document.createElement('div'); m.id='ss-modal'; m.className='ss-modal'; m.setAttribute('role','dialog'); m.setAttribute('aria-label','Altitude chart');
@@ -437,29 +562,5 @@ function chartModalInit(){
   document.addEventListener('keydown',e=>{ if(e.key==='Escape') close(); });
 }
 
-// Hover/touch scrubbing: the dot follows the pointer along the altitude curve and the pill shows alt, direction and time.
-function scrubInit(){
-  const dx=CW/(NSAMP-1), yOf=a=>CH-(Math.max(ALT0,a)-ALT0)/(ALT1-ALT0)*CH;
-  const place=(sv,k)=>{
-    if(!sv._d){ sv._d={a:sv.dataset.a.split(',').map(Number), z:sv.dataset.z.split(',').map(Number)}; }
-    const a=sv._d.a[k], z=sv._d.z[k], x=k*dx, y=yOf(a), m=15*60+k*TSTEP, hm=`${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
-    const txt=a>0?`alt ${Math.round(a)}° · ${CMP[Math.round(z/45)%8]} · ${hm}`:`below horizon · ${hm}`, w=txt.length*5.1+12, lx=Math.min(Math.max(x-w/2,2),CW-w-2), ly=y<30?y+9:y-26;
-    const dot=sv.querySelector('.ss-dot'), cur=sv.querySelector('.ss-cur'), tip=sv.querySelector('.ss-tip'), r=tip.querySelector('rect'), t=tip.querySelector('text');
-    dot.setAttribute('cx',x.toFixed(1)); dot.setAttribute('cy',y.toFixed(1)); cur.setAttribute('x1',x.toFixed(1)); cur.setAttribute('x2',x.toFixed(1));
-    r.setAttribute('x',lx.toFixed(1)); r.setAttribute('y',ly.toFixed(1)); r.setAttribute('width',w.toFixed(1)); t.setAttribute('x',(lx+w/2).toFixed(1)); t.setAttribute('y',(ly+11.5).toFixed(1)); t.textContent=txt;
-  };
-  const reset=sv=>{ sv.classList.remove('ss-on'); place(sv,+sv.dataset.best); sv.querySelector('.ss-dot').setAttribute('visibility',sv.dataset.pk==='1'?'visible':'hidden'); };
-  let active=null;
-  document.addEventListener('pointermove',e=>{
-    const sv=e.target.closest?e.target.closest('.ss-alt'):null;
-    if(active&&active!==sv){ reset(active); active=null; }
-    if(!sv) return;
-    active=sv; const r=sv.getBoundingClientRect(), vb=sv.viewBox.baseVal, xv=vb.x+(e.clientX-r.left)/r.width*vb.width;
-    sv.classList.add('ss-on'); sv.querySelector('.ss-dot').setAttribute('visibility','visible');
-    place(sv,Math.max(0,Math.min(NSAMP-1,Math.round(xv/dx))));
-  });
-  const off=()=>{ if(active){ reset(active); active=null; } };
-  document.addEventListener('pointercancel',off); document.addEventListener('pointerup',e=>{ if(e.pointerType!=='mouse') off(); }); document.documentElement.addEventListener('mouseleave',off);
-}
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();

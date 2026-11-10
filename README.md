@@ -17,24 +17,28 @@ it, whether it fits in the frame, and how much total integration to collect.
 - **For each target, over the next 12 months:**
   - season and peak night
   - next two moon-dark windows
-  - maximum altitude, with warnings for low targets and for targets passing near the zenith (hard for alt-az tracking)
-- **Tonight's altitude chart** for every target: twilight shading, a NOW marker, and a dot that follows your cursor
-  (or finger) to show altitude, compass direction and time. Click a chart to open a larger copy.
+  - highest altitude in full darkness, tonight and over the year, with warnings for low targets and for targets
+    passing near the zenith (hard for alt-az tracking)
+- **Tonight's altitude chart** for each target: altitude curve, Moon, twilight shading and a "now" marker. Hover or
+  drag across it to read altitude, direction and time. Click a chart to open a larger copy.
 - **Favorite locations:** save places with one click and switch between them from chips above the location box.
+- **Favorite targets:** star any target (☆ under its number) and use the Favorites button to show only those.
 - **Telescope selector** (S30, S30 Pro, S50, S50 Pro):
   - framing tags: fits, fits lengthwise, small (crop afterward), or the mosaic size needed
   - integration times rescaled for each scope
 - **Look up any Messier, NGC or IC object** from the OpenNGC catalog (about 14,000 objects) and get the same details.
-- Filter by month (it opens on the current month); sort by next dark window (the default), rank, peak date, integration or framing; show 10–50 targets per page or all of them.
-- Works on phones. Your location, favorite locations, telescope, list and page size are remembered in your browser.
+- Filter by month (it opens on the current month); sort by next dark window (the default), rank, peak date, integration, framing, max altitude or Moon distance; show 10–50 targets per page or all of them.
+- **Red light mode** for use at the telescope: red-only light, dark charts, outlined buttons.
+- Works on phones. Your location, favorite locations and targets, telescope, list and page size are remembered in your browser.
 
 ## How the numbers are worked out
 
 - A night counts toward a target when the Sun is more than 18° below the horizon (astronomical darkness) and the
-  target is above 25°. For targets that never reach 35° from your location, the limit is 8° below their highest
+  target is above the **Min altitude** setting (default 25°, adjustable from 10° to 50°). For targets that never climb 10° above that setting, the limit is 8° below their highest
   point (never lower than 12°).
-- **Moon-dark window:** a run of three or more nights when, for most of the hours the target is up, the Moon is below
-  the horizon or less than 25% lit.
+- **Dark window:** a run of three or more nights when, for most of the hours the target is up, the Moon is below
+  the horizon, less than 25% lit, or far enough from the target: at least 60° for dual-band targets and 90° for
+  UV/IR targets.
 - **Season:** the months whose average dark hours for the target are at least half of its best night.
 - **Framing** compares the target's extent with the telescope's field:
 
@@ -73,7 +77,7 @@ The empty `.nojekyll` file tells GitHub Pages to serve the files as they are.
 
 ## Customize
 
-- **Default location, list and telescope:** edit the JSON block with `id="ss-config"` in `index.html`.
+- **Default location, list, telescope and min altitude:** edit the JSON block with `id="ss-config"` in `index.html`.
 - **Target lists:** `data/targets.json`. Each target has a position (J2000), size, magnitude, integration range,
   filter, notes, Wikipedia links and a `frame` size (long × short, arcminutes) used for the framing tags.
 - **City list:** `data/cities.json` (`[name, latitude, longitude]`, west and south negative).
