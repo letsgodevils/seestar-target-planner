@@ -9,7 +9,7 @@
 <meta name="color-scheme" content="dark">
 <meta name="author" content="Jeff Boerio">
 <title>Seestar Target Planner</title>
-<link rel="stylesheet" href="css/planner.css?v=38ee3f9">
+<link rel="stylesheet" href="css/planner.css?v=e4bff42">
 <!-- Settings read by js/planner.js. Change the default location, list or telescope here. -->
 <script type="application/json" id="ss-config">
 {
@@ -19,7 +19,7 @@
   "defaults": { "name": "Rockwood, TX", "lat": 31.4935, "lon": -99.3706, "list": "galaxies", "scope": "S30P" }
 }
 </script>
-<script defer src="js/planner.js?v=38ee3f9"></script>
+<script defer src="js/planner.js?v=e4bff42"></script>
 </head>
 <body>
 <main>
@@ -72,6 +72,7 @@
   <select id="ss-mo"><option value="">Any month</option></select>
   <label for="ss-sort">Sort</label>
   <select id="ss-sort"><option value="rank">Rank</option><option value="win" selected>Next dark window</option><option value="peak">Peak date</option><option value="int">Integration</option><option value="fit">Framing</option></select>
+  <button type="button" id="ss-favOnly" class="ss-favonly" aria-pressed="false">☆ Favorites</button>
   <span class="ss-count" id="ss-count"></span>
 </div>
 

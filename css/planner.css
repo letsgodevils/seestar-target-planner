@@ -154,3 +154,9 @@ main{padding:0 8px}
 .seestar-planner .ss-fav .ss-favx:hover{color:var(--ss-red)}
 .seestar-planner .ss-fav.ss-fav-on{border-color:var(--ss-amber)}
 .seestar-planner .ss-favsave[aria-pressed="true"]{color:var(--ss-amber);border-color:var(--ss-amber)}
+
+.seestar-planner .ss-star{display:block;margin:4px 0 0;padding:0;background:none;border:0;color:var(--ss-dim);font-size:1.15rem;line-height:1;cursor:pointer}
+.seestar-planner .ss-star:hover{color:var(--ss-amber)}
+.seestar-planner .ss-star.ss-on{color:var(--ss-amber)}
+.seestar-planner .ss-favonly{background:var(--ss-panel);border:1px solid var(--ss-line);color:var(--ss-ink);border-radius:6px;padding:6px 10px;font:inherit;font-size:.85rem}
+.seestar-planner .ss-favonly.ss-on{border-color:var(--ss-amber);color:var(--ss-amber)}

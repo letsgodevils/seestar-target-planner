@@ -264,6 +264,21 @@ function altChart(o){
   let ticks=''; for(let h=18;h<=33;h+=3){ const x=((h-15)*60/TSTEP)*dx; if(x<8||x>CW-8) continue; ticks+=`<text x="${x.toFixed(1)}" y="${CH+12}" text-anchor="middle" font-size="8.2" fill="#8b90a3" font-family="inherit">${String(h%24).padStart(2,'0')}:00</text>`; }
   return `<div class="ss-altw"><svg class="ss-alt" data-a="${alts.map(v=>v.toFixed(1)).join(',')}" data-z="${azs.join(',')}" data-best="${best}" data-pk="${pk?1:0}" viewBox="-4 -4 ${CW+8} ${CH+19}" role="img" aria-label="Altitude tonight"><defs><clipPath id="ss-cp"><rect width="${CW}" height="${CH}" rx="5"/></clipPath></defs><g clip-path="url(#ss-cp)">${bands}<line x1="0" x2="${CW}" y1="${yOf(THR).toFixed(1)}" y2="${yOf(THR).toFixed(1)}" stroke="#7d869f" stroke-width=".7" stroke-dasharray="3 3" opacity=".7"/>${above0?`<path d="${pts}" fill="none" stroke="#ff5c7a" stroke-width="1.8" stroke-linejoin="round"/>`:''}${now}</g>${peak}${ticks}</svg>${cap?`<div class="ss-altcap">${cap}</div>`:'<div class="ss-altcap">Below the horizon tonight</div>'}</div>`;
 }
+let tFavs=null, favOnly=false;
+function tfGet(){ if(!tFavs){ try{ const a=JSON.parse(store.get('seestarFavTargets')||'[]'); tFavs=new Set(Array.isArray(a)?a:[]); }catch(e){ tFavs=new Set(); } } return tFavs; }
+function tfSave(){ store.set('seestarFavTargets',JSON.stringify([...tfGet()])); }
+function starBtn(name){ const on=tfGet().has(name); return `<button type="button" class="ss-star${on?' ss-on':''}" data-t="${esc(name)}" aria-pressed="${on}" aria-label="${on?'Remove':'Add'} ${esc(name)} ${on?'from':'to'} favorites" title="${on?'Remove from favorites':'Favorite this target'}">${on?'★':'☆'}</button>`; }
+function tfBtnUpdate(){ const b=$('favOnly'); if(!b) return; const n=tfGet().size; b.textContent=`${favOnly?'★':'☆'} Favorites${n?' ('+n+')':''}`; b.setAttribute('aria-pressed',String(favOnly)); b.classList.toggle('ss-on',favOnly); }
+function tfInit(){
+  tfBtnUpdate();
+  $('favOnly').addEventListener('click',()=>{ favOnly=!favOnly; tfBtnUpdate(); page=1; render(); });
+  document.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('.ss-star'); if(!b) return;
+    const n=b.dataset.t, f=tfGet(); f.has(n)?f.delete(n):f.add(n); tfSave(); tfBtnUpdate();
+    if(favOnly){ render(); return; }
+    document.querySelectorAll('.ss-star').forEach(x=>{ if(x.dataset.t===n){ const on=f.has(n); x.classList.toggle('ss-on',on); x.setAttribute('aria-pressed',String(on)); x.textContent=on?'★':'☆'; x.title=on?'Remove from favorites':'Favorite this target'; } });
+  });
+}
 function rowHTML(o,rank,r){
   const tl=tsLinks(o), su=simUrl(o), tl0=tl.length?tl[0]:o.wiki[0];
   const links=tl.map(w=>`<a class="ss-wk" href="${esc(w[1])}" target="_blank" rel="noopener">${esc(w[0])}</a>`);
@@ -272,7 +287,7 @@ function rowHTML(o,rank,r){
   const flt=`<span class="ss-flt ${o.filter==='Dual-band'?'ss-db':''}">${esc(o.filter)}</span>`;
   const fx=framing(o.frame); const fit=fx?`<span class="ss-fit ${fx.c}">${esc(fx.t)}</span>`:'';
   const size=o.sizeTxt??o.size;
-  const head=`<span class="ss-rk">${rank}</span>
+  const head=`<span class="ss-rk">${rank}${starBtn(o.name)}</span>
 <div class="ss-c-nm"><div class="ss-nm">${nameHTML}${flt}${fit}${simHTML}</div><div class="ss-mem">${o.typ?`<span class="ss-typ">${esc(o.typ)}</span> · `:''}${esc(o.members)} · <span class="ss-mono">${esc(size)}${/\d$/.test(String(size))?'′':''}${o.mag!=null?` · mag ${o.mag}`:''}</span></div>${links.length>1?`<div class="ss-wl">Telescopius: ${links.join(' · ')}</div>`:''}<div class="ss-note">${esc(o.notes)}</div></div>`;
   if(!r.visible) return `<div class="ss-row ss-off" role="row">${head}<div class="ss-c-se"><span class="ss-lbl">Season</span><span class="ss-mono">Not visible</span></div><div class="ss-c-pk"></div><div class="ss-c-win"></div><div class="ss-c-alt"><span class="ss-lbl">Max alt</span><span class="ss-mono">${r.maxalt}°</span></div><div class="ss-c-int"><span class="ss-int">—</span></div></div>`;
   const tags=(r.maxalt<30?'<span class="ss-tag ss-low">low</span>':'')+(r.maxalt>80?'<span class="ss-tag ss-zen">near zenith</span>':'');
@@ -288,7 +303,7 @@ function render(){
   if(!S) return;
   const L=LISTS[kind], RR=R[kind];
   const q=$('q').value.trim().toLowerCase(), m=+$('mo').value, s=$('sort').value;
-  let rows=L.map((t,i)=>({...t,rank:i+1,r:RR[i]})).filter(o=>(!q||(o.name+' '+o.members).toLowerCase().includes(q))&&(!m||(o.r.visible&&inSeason(o.r.season,m))));
+  let rows=L.map((t,i)=>({...t,rank:i+1,r:RR[i]})).filter(o=>(!favOnly||tfGet().has(o.name))&&(!q||(o.name+' '+o.members).toLowerCase().includes(q))&&(!m||(o.r.visible&&inSeason(o.r.season,m))));
   const key={fit:o=>{const x=framing(o.frame);return x?x.k*10-x.f:99;},rank:o=>o.rank,win:o=>o.r.visible?o.r.winStart:1e5,peak:o=>o.r.visible?o.r.peakKey:1e5,int:o=>parseFloat(o.integ)};
   rows.sort((a,b)=>{const x=key[s](a),y=key[s](b);return x<y?-1:x>y?1:a.rank-b.rank;});
   if(s==='rank') rows.sort((a,b)=>(b.r.visible-a.r.visible)||a.rank-b.rank);
@@ -368,7 +383,7 @@ function doFind(){
     box.innerHTML=`<p class="ss-err">${esc(e&&e.message&&/^Town search/.test(e.message)?e.message:'Town search failed. Check your connection and try again.')}</p>`;
   }).finally(()=>{ geoBusy=false; $('findBtn').disabled=false; });
 }
-function init(){ scrubInit(); chartModalInit();
+function init(){ tfInit(); scrubInit(); chartModalInit();
   if(!$('app')) return;
   Promise.all([getJSON(OPT.lists),getJSON(OPT.cities)]).then(([l,c])=>{
     LISTS=l; CITIES=c;
