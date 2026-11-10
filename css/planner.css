@@ -142,3 +142,15 @@ main{padding:0 8px}
 .ss-modal .ss-modal-x:hover{background:rgba(255,255,255,.08)}
 .ss-modal .ss-altcap{font-size:.85rem;margin-top:6px}
 .seestar-planner .ss-alt{cursor:zoom-in}
+
+.seestar-planner .ss-favs{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
+.seestar-planner .ss-favs[hidden]{display:none}
+.seestar-planner .ss-favl{font:600 .72rem var(--ss-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ss-dim);margin-right:2px}
+.seestar-planner .ss-fav{display:inline-flex;align-items:stretch;border:1px solid var(--ss-line);border-radius:999px;overflow:hidden;background:var(--ss-sky)}
+.seestar-planner .ss-fav button{border:0;border-radius:0;background:transparent;padding:4px 10px;font-size:.85rem}
+.seestar-planner .ss-fav .ss-favgo{color:var(--ss-ink)}
+.seestar-planner .ss-fav .ss-favgo:hover{color:var(--ss-amber)}
+.seestar-planner .ss-fav .ss-favx{padding:4px 9px 4px 4px;color:var(--ss-dim);font-size:1rem;line-height:1}
+.seestar-planner .ss-fav .ss-favx:hover{color:var(--ss-red)}
+.seestar-planner .ss-fav.ss-fav-on{border-color:var(--ss-amber)}
+.seestar-planner .ss-favsave[aria-pressed="true"]{color:var(--ss-amber);border-color:var(--ss-amber)}

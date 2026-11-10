@@ -38,6 +38,7 @@
 <p class="ss-sub">Dates are computed for your location over the next 12 months: astronomical darkness, target above 25° (lower for targets that never get that high). Dark windows are runs of nights when the Moon is down or under 25% lit while the target is up.</p>
 
 <form class="ss-loc" id="ss-locForm" aria-label="Observing location">
+  <div class="ss-favs" id="ss-favs" hidden></div>
     <div class="ss-fld ss-find">
     <label for="ss-findQ">Search any town or place</label>
     <div class="ss-findrow"><input id="ss-findQ" type="search" autocomplete="off" placeholder="e.g. Brady, TX"><button type="button" id="ss-findBtn">Find</button></div>
@@ -47,6 +48,7 @@
   <div class="ss-fld ss-ll"><label for="ss-lat">Latitude (°N +)</label><input id="ss-lat" class="ss-mono" inputmode="decimal" placeholder="31.49"></div>
   <div class="ss-fld ss-ll"><label for="ss-lon">Longitude (°E +)</label><input id="ss-lon" class="ss-mono" inputmode="decimal" placeholder="-99.37"></div>
   <button type="submit" class="ss-primary">Calculate</button>
+  <button type="button" id="ss-favBtn" class="ss-favsave" aria-pressed="false">☆ Save location</button>
   <p class="ss-err" id="ss-err" role="alert"></p>
 </form>
 

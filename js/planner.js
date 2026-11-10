@@ -123,6 +123,39 @@ let page=1, S=null, kind=DEF.list==='nebulae'?'nebulae':'galaxies', R={}, look=[
 const start=new Date(); start.setHours(0,0,0,0);
 const getJSON=url=>fetch(url,{credentials:'same-origin'}).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
 function loadCatalog(){ if(!catPromise) catPromise=getJSON(OPT.catalog).then(d=>{ CAT=d; buildIndex(); }); return catPromise; }
+
+// ---- Favorite locations (saved in this browser)
+const FAVK='seestarFavs';
+function favGet(){ try{ const a=JSON.parse(store.get(FAVK)||'[]'); return Array.isArray(a)?a.filter(f=>f&&f.name&&isFinite(f.lat)&&isFinite(f.lon)):[]; }catch(e){ return []; } }
+const favKey=(lat,lon)=>(+lat).toFixed(3)+','+(+lon).toFixed(3);
+function curLoc(){
+  const lat=parseFloat($('lat').value), lon=parseFloat($('lon').value);
+  if(!(lat>=-90&&lat<=90)||!(lon>=-180&&lon<=180)) return null;
+  const c=CITIES[+$('city').value];
+  return {name:$('city').value!==''&&c?c[0]:(customName||`${lat.toFixed(2)}, ${lon.toFixed(2)}`),lat,lon};
+}
+function favRender(){
+  const a=favGet(), box=$('favs'), cur=curLoc(), saved=!!cur&&a.some(f=>favKey(f.lat,f.lon)===favKey(cur.lat,cur.lon));
+  box.hidden=!a.length;
+  box.innerHTML=a.length?'<span class="ss-favl">Favorites</span>'+a.map((f,i)=>`<span class="ss-fav${cur&&favKey(f.lat,f.lon)===favKey(cur.lat,cur.lon)?' ss-fav-on':''}"><button type="button" class="ss-favgo" data-i="${i}" title="Use ${esc(f.name)}">★ ${esc(f.name)}</button><button type="button" class="ss-favx" data-i="${i}" aria-label="Remove ${esc(f.name)} from favorites" title="Remove">×</button></span>`).join(''):'';
+  const b=$('favBtn'); b.textContent=saved?'★ Saved':'☆ Save location'; b.setAttribute('aria-pressed',String(saved)); b.title=saved?'Remove this location from favorites':'Save this location to favorites';
+}
+function favInit(){
+  $('favBtn').addEventListener('click',()=>{
+    const cur=curLoc(); if(!cur){ $('err').textContent='Enter a valid latitude and longitude first.'; return; }
+    const a=favGet(), k=favKey(cur.lat,cur.lon), i=a.findIndex(f=>favKey(f.lat,f.lon)===k);
+    if(i>=0) a.splice(i,1); else a.push({name:cur.name,lat:+cur.lat.toFixed(4),lon:+cur.lon.toFixed(4)});
+    store.set(FAVK,JSON.stringify(a.slice(0,12))); favRender();
+  });
+  $('favs').addEventListener('click',e=>{
+    const go=e.target.closest('.ss-favgo'), x=e.target.closest('.ss-favx'); if(!go&&!x) return;
+    const a=favGet(), f=a[+(go||x).dataset.i]; if(!f) return;
+    if(x){ a.splice(+x.dataset.i,1); store.set(FAVK,JSON.stringify(a)); favRender(); }
+    else { setFields(f); run(); }
+  });
+  ['lat','lon'].forEach(id=>$(id).addEventListener('input',favRender));
+  favRender();
+}
 function setFields(l){ $('lat').value=(+l.lat).toFixed(4); $('lon').value=(+l.lon).toFixed(4); const i=CITIES.findIndex(c=>c[0]===l.name); $('city').value=i>=0?i:''; customName=i>=0?null:(l.name||null); }
 function setKind(k){ kind=k; page=1; $('bG').setAttribute('aria-pressed',String(k==='galaxies')); $('bN').setAttribute('aria-pressed',String(k==='nebulae')); $('hKind').textContent=k==='galaxies'?'Galaxies':'Nebulae'; store.set('seestarKind',k); render(); }
 function inSeason(s,m){ if(s==="Year-round")return true; const [a,b]=s.split('–').map(x=>MON.indexOf(x)+1); const e=b||a; return a<=e?(m>=a&&m<=e):(m>=a||m<=e); }
@@ -132,7 +165,7 @@ function run(){
   $('err').textContent='';
   const c=CITIES[+$('city').value];
   const loc={name:$('city').value!==''&&c?c[0]:(customName||'Custom location'),lat,lon};
-  store.set('seestarLoc',JSON.stringify(loc));
+  store.set('seestarLoc',JSON.stringify(loc)); favRender();
   $('rows').innerHTML='<p class="ss-busy">Calculating…</p>';
   setTimeout(()=>{
     S=prepSite(lat,lon,start); R={}; page=1;
@@ -341,6 +374,7 @@ function init(){ scrubInit(); chartModalInit();
     LISTS=l; CITIES=c;
     $('city').innerHTML='<option value="">Custom coordinates</option>'+CITIES.map((c,i)=>`<option value="${i}">${esc(c[0])}</option>`).join('');
     MON.forEach((m,i)=>{const o=document.createElement('option');o.value=i+1;o.textContent=m;$('mo').appendChild(o);});
+    $('mo').value=String(new Date().getMonth()+1); // default to the current month; "Any month" is still one click away
     $('city').addEventListener('change',()=>{const c=CITIES[+$('city').value]; if($('city').value!==''&&c){ setFields({name:c[0],lat:c[1],lon:c[2]}); run(); }});
     ['lat','lon'].forEach(id=>$(id).addEventListener('input',()=>{ $('city').value=''; customName=null; }));
     $('locForm').addEventListener('submit',e=>{e.preventDefault(); run();});
@@ -366,6 +400,7 @@ function init(){ scrubInit(); chartModalInit();
     updateScopeUI();
     let saved=null; try{ saved=JSON.parse(store.get('seestarLoc')); }catch(e){}
     setFields(saved&&isFinite(saved.lat)&&isFinite(saved.lon)?saved:DEF);
+    favInit();
     run();
   }).catch(()=>{ $('rows').innerHTML='<p class="ss-err">The planner data could not be loaded. Reload the page and try again.</p>'; });
 }
