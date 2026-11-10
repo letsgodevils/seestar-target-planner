@@ -4,25 +4,29 @@ Plan galaxy and nebula imaging for ZWO Seestar smart telescopes (S30, S30 Pro, S
 location and telescope, and the planner shows when each target is best placed, the next moon-dark nights to shoot
 it, whether it fits in the frame, and how much total integration to collect.
 
-![Seestar Target Planner showing the top 50 galaxies for Rockwood, TX](docs/screenshot.png)
+![Seestar Target Planner showing the top 50 galaxies for Phoenix, AZ, with favorite locations and tonight's altitude charts](docs/screenshot.png)
 
-**Live site:** _add your GitHub Pages link here_
+**Live site:** [letsgodevils.github.io/seestar-target-planner](https://letsgodevils.github.io/seestar-target-planner/)
 
 ## Features
 
 - **Top 50 galaxies and top 50 nebulae**, chosen for small-aperture smart telescopes, each with notes, a filter
-  recommendation (UV/IR cut or dual-band) and Wikipedia links.
+  recommendation (UV/IR cut or dual-band), a link to the target's Telescopius page and a button that opens the
+  Telescopius telescope simulator centred on it.
 - **Any location.** Search for a town (OpenStreetMap), pick from a built-in city list, or type coordinates.
 - **For each target, over the next 12 months:**
   - season and peak night
   - next two moon-dark windows
   - maximum altitude, with warnings for low targets and for targets passing near the zenith (hard for alt-az tracking)
+- **Tonight's altitude chart** for every target: twilight shading, a NOW marker, and a dot that follows your cursor
+  (or finger) to show altitude, compass direction and time. Click a chart to open a larger copy.
+- **Favorite locations:** save places with one click and switch between them from chips above the location box.
 - **Telescope selector** (S30, S30 Pro, S50, S50 Pro):
   - framing tags: fits, fits lengthwise, small (crop afterward), or the mosaic size needed
   - integration times rescaled for each scope
 - **Look up any Messier, NGC or IC object** from the OpenNGC catalog (about 14,000 objects) and get the same details.
-- Filter by month; sort by rank, next dark window, peak date, integration or framing; show 10–50 targets per page or all of them.
-- Works on phones. Your location, telescope, list and page size are remembered in your browser.
+- Filter by month (it opens on the current month); sort by next dark window (the default), rank, peak date, integration or framing; show 10–50 targets per page or all of them.
+- Works on phones. Your location, favorite locations, telescope, list and page size are remembered in your browser.
 
 ## How the numbers are worked out
 
