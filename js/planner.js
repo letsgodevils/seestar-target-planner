@@ -173,6 +173,7 @@ function scaleInteg(str){
 function updateScopeUI(){
   document.querySelectorAll('#ss-scopeSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===scope)));
   $('fScope').textContent=G.name;
+  $('fSim').textContent=`Telescopius simulator setup: ${G.fl} mm focal length · ${G.ap} mm aperture · ${(G.w*PIX/1000).toFixed(2)} × ${(G.h*PIX/1000).toFixed(2)} mm sensor`;
   $('fScopeSpec').textContent=`${G.ap} mm · ${G.fl} mm f/${G.f.toFixed(1)} · ${(G.L/60).toFixed(2)}° × ${(G.S/60).toFixed(2)}° · ${G.scale.toFixed(2)}″/px`;
   const k=(G.f/5.3)**2;
   $('tipInteg').textContent = scope==='S30P'
@@ -187,9 +188,12 @@ function tsSlug(label){
   const o=String(label||'').trim().match(/^(Sh2|Abell|Ced)[\s-]*(\d+)/i); if(o) return `${o[1].toLowerCase()}-${o[2]}`;
   return null;
 }
-function tsUrl(slug){
-  const q=S?`?lat=${S.lat.toFixed(4)}&lon=${S.lon.toFixed(4)}`:'';
-  return `https://telescopius.com/deep-sky-objects/${slug}${q}`;
+function tsUrl(slug){ return `https://telescopius.com/deep-sky-objects/${slug}`; }
+// Telescope Simulator centred on the target: ra in hours, dec in degrees (the format Telescopius uses in its own links).
+function simUrl(o){
+  const ra=o.raD!=null?+o.raD:(o.ra?raDeg(o.ra):null), dec=o.decD!=null?+o.decD:(o.dec?decDeg(o.dec):null);
+  if(ra==null||dec==null||isNaN(ra)||isNaN(dec)) return null;
+  return `https://telescopius.com/telescope-simulator?ra=${(ra/15).toFixed(6)}&dec=${dec.toFixed(6)}`;
 }
 function tsLinks(o){
   // [label, url] pairs; wiki labels that aren't catalog ids (e.g. "Leo Triplet") are skipped, falling back to ids from the members text.
@@ -198,9 +202,9 @@ function tsLinks(o){
   return out.map(x=>[x[0],tsUrl(x[1])]);
 }
 function rowHTML(o,rank,r){
-  const tl=tsLinks(o), tl0=tl.length?tl[0]:o.wiki[0];
+  const tl=tsLinks(o), su=simUrl(o), tl0=su?['',su]:(tl.length?tl[0]:o.wiki[0]);
   const links=tl.map(w=>`<a class="ss-wk" href="${esc(w[1])}" target="_blank" rel="noopener">${esc(w[0])}</a>`);
-  const nameHTML=`<a class="ss-wk" href="${esc(tl0[1])}" target="_blank" rel="noopener" title="Open on Telescopius">${esc(o.name)}</a>`;
+  const nameHTML=`<a class="ss-wk" href="${esc(tl0[1])}" target="_blank" rel="noopener" title="Open in the Telescopius telescope simulator">${esc(o.name)}</a>`;
   const flt=`<span class="ss-flt ${o.filter==='Dual-band'?'ss-db':''}">${esc(o.filter)}</span>`;
   const fx=framing(o.frame); const fit=fx?`<span class="ss-fit ${fx.c}">${esc(fx.t)}</span>`:'';
   const size=o.sizeTxt??o.size;
