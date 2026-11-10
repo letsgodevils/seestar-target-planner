@@ -202,14 +202,15 @@ function tsLinks(o){
   return out.map(x=>[x[0],tsUrl(x[1])]);
 }
 function rowHTML(o,rank,r){
-  const tl=tsLinks(o), su=simUrl(o), tl0=su?['',su]:(tl.length?tl[0]:o.wiki[0]);
+  const tl=tsLinks(o), su=simUrl(o), tl0=tl.length?tl[0]:o.wiki[0];
   const links=tl.map(w=>`<a class="ss-wk" href="${esc(w[1])}" target="_blank" rel="noopener">${esc(w[0])}</a>`);
-  const nameHTML=`<a class="ss-wk" href="${esc(tl0[1])}" target="_blank" rel="noopener" title="Open in the Telescopius telescope simulator">${esc(o.name)}</a>`;
+  const nameHTML=`<a class="ss-wk" href="${esc(tl0[1])}" target="_blank" rel="noopener" title="Open the target page on Telescopius">${esc(o.name)}</a>`;
+  const simHTML=su?`<a class="ss-sim" href="${esc(su)}" target="_blank" rel="noopener" title="Open the Telescopius telescope simulator centred on this target">Simulator ↗</a>`:'';
   const flt=`<span class="ss-flt ${o.filter==='Dual-band'?'ss-db':''}">${esc(o.filter)}</span>`;
   const fx=framing(o.frame); const fit=fx?`<span class="ss-fit ${fx.c}">${esc(fx.t)}</span>`:'';
   const size=o.sizeTxt??o.size;
   const head=`<span class="ss-rk">${rank}</span>
-<div class="ss-c-nm"><div class="ss-nm">${nameHTML}${flt}${fit}</div><div class="ss-mem">${o.typ?`<span class="ss-typ">${esc(o.typ)}</span> · `:''}${esc(o.members)} · <span class="ss-mono">${esc(size)}${/\d$/.test(String(size))?'′':''}${o.mag!=null?` · mag ${o.mag}`:''}</span></div>${links.length>1?`<div class="ss-wl">Telescopius: ${links.join(' · ')}</div>`:''}<div class="ss-note">${esc(o.notes)}</div></div>`;
+<div class="ss-c-nm"><div class="ss-nm">${nameHTML}${flt}${fit}${simHTML}</div><div class="ss-mem">${o.typ?`<span class="ss-typ">${esc(o.typ)}</span> · `:''}${esc(o.members)} · <span class="ss-mono">${esc(size)}${/\d$/.test(String(size))?'′':''}${o.mag!=null?` · mag ${o.mag}`:''}</span></div>${links.length>1?`<div class="ss-wl">Telescopius: ${links.join(' · ')}</div>`:''}<div class="ss-note">${esc(o.notes)}</div></div>`;
   if(!r.visible) return `<div class="ss-row ss-off" role="row">${head}<div class="ss-c-se"><span class="ss-lbl">Season</span><span class="ss-mono">Not visible</span></div><div class="ss-c-pk"></div><div class="ss-c-win"></div><div class="ss-c-alt"><span class="ss-lbl">Max alt</span><span class="ss-mono">${r.maxalt}°</span></div><div class="ss-c-int"><span class="ss-int">—</span></div></div>`;
   const tags=(r.maxalt<30?'<span class="ss-tag ss-low">low</span>':'')+(r.maxalt>80?'<span class="ss-tag ss-zen">near zenith</span>':'');
   const w=r.windows.length?r.windows.map((x,i)=>`<span class="ss-pill ${i===0&&r.winStart<10?'ss-now':''}">${esc(x)}</span>`).join(''):'<span class="ss-mono ss-dim">No moon-dark run</span>';

@@ -85,6 +85,8 @@
 .seestar-planner .ss-wk:hover{color:var(--ss-red)}
 .seestar-planner .ss-wl{font-size:.8rem;color:var(--ss-dim);margin-top:2px}
 .seestar-planner .ss-wl .ss-wk{color:#c9c3bc}
+.seestar-planner .ss-sim{font:500 .7rem var(--ss-mono);padding:1px 6px;border-radius:4px;border:1px solid var(--ss-line);color:var(--ss-ink);margin-left:6px;vertical-align:2px;white-space:nowrap;text-decoration:none}
+.seestar-planner .ss-sim:hover{border-color:var(--ss-red);color:var(--ss-red)}
 .seestar-planner .ss-flt{font:500 .7rem var(--ss-mono);padding:1px 6px;border-radius:4px;border:1px solid var(--ss-line);color:var(--ss-dim);margin-left:6px;vertical-align:2px;white-space:nowrap}
 .seestar-planner .ss-flt.ss-db{border-color:#7a4a8f;color:var(--ss-violet)}
 .seestar-planner .ss-typ{font:500 .72rem var(--ss-mono);color:var(--ss-amber)}
