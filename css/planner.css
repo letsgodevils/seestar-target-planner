@@ -201,3 +201,6 @@ html.red-light .seestar-planner .ss-favonly.ss-on{border-color:#fff;color:#fff}
 .ss-modal .ss-altw{width:100%;max-width:none}
 .ss-modal .ss-altcap{font:500 1rem/1.4 var(--ss-mono,monospace);margin-top:8px}
 .ss-modal .ss-altmoon{font:500 .85rem/1.4 var(--ss-mono,monospace);margin-top:4px}
+
+.seestar-planner .ss-cust select{width:100%}
+.seestar-planner .ss-cust input[hidden]{display:none}

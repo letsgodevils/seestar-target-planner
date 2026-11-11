@@ -9,7 +9,7 @@
 <meta name="color-scheme" content="dark">
 <meta name="author" content="Jeff Boerio">
 <title>Seestar Target Planner</title>
-<link rel="stylesheet" href="css/planner.css?v=4611dbd">
+<link rel="stylesheet" href="css/planner.css?v=efc81b7">
 <!-- Settings read by js/planner.js. Change the default location, list or telescope here. -->
 <script type="application/json" id="ss-config">
 {
@@ -19,7 +19,7 @@
   "defaults": { "name": "Rockwood, TX", "lat": 31.4935, "lon": -99.3706, "list": "galaxies", "scope": "S30P", "thr": 25 }
 }
 </script>
-<script defer src="js/planner.js?v=4611dbd"></script>
+<script defer src="js/planner.js?v=efc81b7"></script>
 </head>
 <body>
 <main>
@@ -38,6 +38,7 @@
       <label>Sensor width (px)<input name="w" type="number" min="1" step="1" inputmode="numeric"></label>
       <label>Sensor height (px)<input name="h" type="number" min="1" step="1" inputmode="numeric"></label>
       <label>Pixel size (µm)<input name="pix" type="number" min="0.1" step="any" inputmode="decimal"></label>
+      <label>Reducer / Barlow<select name="mult" aria-label="Focal reducer or Barlow multiplier"></select><input name="multc" type="number" min="0.1" max="10" step="any" inputmode="decimal" aria-label="Custom multiplier" hidden></label>
       <div class="ss-custbtn"><button type="submit">Use this setup</button><button type="button" id="ss-custCancel">Cancel</button><button type="button" id="ss-custClear">Remove custom</button><span id="ss-custErr" class="ss-err" role="alert"></span></div>
     </form>
     <div class="ss-seg" role="group" aria-label="Target list">

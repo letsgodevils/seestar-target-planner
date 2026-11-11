@@ -209,7 +209,9 @@ const SCOPES={
   S50P:{name:'Seestar S50 Pro',ap:50,fl:260,f:5.2,w:3840,h:2160,batt:7}};
 const PIX=2.9; // µm, all four telephoto sensors
 let scope=SCOPES[DEF.scope]?DEF.scope:'S30P';
-function scopeGeom(k){ const sc=SCOPES[k], scale=206.265*(sc.pix||PIX)/sc.fl; return {...sc, scale, L:sc.w*scale/60, S:sc.h*scale/60}; }
+const MULTS=[0.5,0.63,0.67,0.7,0.75,0.8,0.85,1,1.5,2,2.5,3,4,5];
+// Only the Custom setup carries a reducer/Barlow multiplier (applied to its focal length).
+function scopeGeom(k){ const b=SCOPES[k], m=b.mult||1, sc={...b, fl:+(b.fl*m).toFixed(1), f:b.f*m, name:b.name+(m!==1?` · ${+m.toFixed(2)}×`:'')}, scale=206.265*(sc.pix||PIX)/sc.fl; return {...sc, scale, L:sc.w*scale/60, S:sc.h*scale/60}; }
 let G=scopeGeom(scope);
 function framing(fr){
   if(!fr||!fr[0]) return null;
@@ -239,18 +241,22 @@ function updateScopeUI(){
   $('tipBatt').textContent=`Split long totals across several nights in the same dark window and stack them. Battery is about ${G.batt} h, so plan one or two targets per night.`;
 }
 // Custom telescope/camera: aperture, focal length, sensor pixels and pixel size, saved in this browser.
-function custLoad(){ try{ const c=JSON.parse(store.get('seestarCustomScope')||'null'); if(c&&[c.ap,c.fl,c.w,c.h,c.pix].every(v=>isFinite(v)&&v>0)) SCOPES.CUSTOM={name:String(c.name||'Custom').slice(0,40),ap:+c.ap,fl:+c.fl,f:+c.fl/+c.ap,w:+c.w,h:+c.h,pix:+c.pix,batt:6}; }catch(e){} }
+function custLoad(){ try{ const c=JSON.parse(store.get('seestarCustomScope')||'null'); if(c&&[c.ap,c.fl,c.w,c.h,c.pix].every(v=>isFinite(v)&&v>0)) SCOPES.CUSTOM={name:String(c.name||'Custom').slice(0,40),ap:+c.ap,fl:+c.fl,f:+c.fl/+c.ap,w:+c.w,h:+c.h,pix:+c.pix,mult:(isFinite(c.mult)&&c.mult>=0.1&&c.mult<=10)?+c.mult:1,batt:6}; }catch(e){} }
 function custLabel(){ const b=$('scopeCust'); if(b) b.textContent=SCOPES.CUSTOM?SCOPES.CUSTOM.name:'Custom'; }
 function custInit(){
   const f=$('custForm'), b=$('scopeCust'); if(!f||!b) return;
+  const sel=f.elements.mult, mc=f.elements.multc;
+  sel.innerHTML=MULTS.map(m=>`<option value="${m}">${m}x</option>`).join('')+'<option value="custom">Custom</option>';
+  const setMultUI=m=>{ const known=MULTS.includes(m); sel.value=known?String(m):'custom'; mc.hidden=known; if(!known) mc.value=m; };
+  sel.addEventListener('change',()=>{ const c=sel.value==='custom'; mc.hidden=!c; if(c){ mc.value=mc.value||1; mc.focus(); } });
   custLoad(); custLabel();
-  const fill=()=>{ const c=SCOPES.CUSTOM||SCOPES[scope]||SCOPES.S30P; f.elements.name.value=SCOPES.CUSTOM?c.name:''; f.elements.ap.value=c.ap; f.elements.fl.value=c.fl; f.elements.w.value=c.w; f.elements.h.value=c.h; f.elements.pix.value=c.pix||PIX; };
+  const fill=()=>{ const c=SCOPES.CUSTOM||SCOPES[scope]||SCOPES.S30P; f.elements.name.value=SCOPES.CUSTOM?c.name:''; f.elements.ap.value=c.ap; f.elements.fl.value=c.fl; f.elements.w.value=c.w; f.elements.h.value=c.h; f.elements.pix.value=c.pix||PIX; setMultUI(c.mult||1); };
   b.addEventListener('click',()=>{ if(SCOPES.CUSTOM&&scope!=='CUSTOM'){ setScope('CUSTOM'); return; } f.hidden=!f.hidden; if(!f.hidden){ fill(); f.elements.ap.focus(); } });
   f.addEventListener('submit',e=>{ e.preventDefault();
-    const v=n=>+f.elements[n].value, ok=['ap','fl','w','h','pix'].every(n=>isFinite(v(n))&&v(n)>0);
-    if(!ok){ $('custErr').textContent='Enter a number greater than 0 in every field.'; return; }
+    const v=n=>+f.elements[n].value, mv=sel.value==='custom'?+mc.value:+sel.value, ok=['ap','fl','w','h','pix'].every(n=>isFinite(v(n))&&v(n)>0)&&isFinite(mv)&&mv>=0.1&&mv<=10;
+    if(!ok){ $('custErr').textContent='Enter a number greater than 0 in every field (multiplier 0.1–10).'; return; }
     $('custErr').textContent='';
-    store.set('seestarCustomScope',JSON.stringify({name:f.elements.name.value.trim()||'Custom',ap:v('ap'),fl:v('fl'),w:v('w'),h:v('h'),pix:v('pix')}));
+    store.set('seestarCustomScope',JSON.stringify({name:f.elements.name.value.trim()||'Custom',ap:v('ap'),fl:v('fl'),w:v('w'),h:v('h'),pix:v('pix'),mult:mv}));
     custLoad(); custLabel(); setScope('CUSTOM'); f.hidden=true; });
   $('custCancel').addEventListener('click',()=>{ f.hidden=true; });
   $('custClear').addEventListener('click',()=>{ store.set('seestarCustomScope',''); delete SCOPES.CUSTOM; custLabel(); f.hidden=true; if(scope==='CUSTOM') setScope('S30P'); });
