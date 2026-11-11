@@ -191,3 +191,13 @@ html.red-light .seestar-planner #ss-findBtn{background:transparent;color:var(--s
 .ss-modal .ss-altc{cursor:crosshair}
 html.red-light .seestar-planner .ss-star{border:0;background:none}
 html.red-light .seestar-planner .ss-favonly.ss-on{border-color:#fff;color:#fff}
+
+.seestar-planner .ss-cust{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px 10px;padding:12px;border:1px solid var(--ss-line);border-radius:8px;background:var(--ss-panel)}
+.seestar-planner .ss-cust[hidden]{display:none}
+.seestar-planner .ss-cust label{display:flex;flex-direction:column;gap:3px;font-size:.75rem;color:var(--ss-dim)}
+.seestar-planner .ss-cust input{width:100%}
+.seestar-planner .ss-custbtn{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ss-modal .ss-altc{display:block;width:100%;height:auto;border-radius:5px;cursor:crosshair}
+.ss-modal .ss-altw{width:100%;max-width:none}
+.ss-modal .ss-altcap{font:500 1rem/1.4 var(--ss-mono,monospace);margin-top:8px}
+.ss-modal .ss-altmoon{font:500 .85rem/1.4 var(--ss-mono,monospace);margin-top:4px}

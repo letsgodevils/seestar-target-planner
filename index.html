@@ -9,7 +9,7 @@
 <meta name="color-scheme" content="dark">
 <meta name="author" content="Jeff Boerio">
 <title>Seestar Target Planner</title>
-<link rel="stylesheet" href="css/planner.css?v=dc5f2b4">
+<link rel="stylesheet" href="css/planner.css?v=4611dbd">
 <!-- Settings read by js/planner.js. Change the default location, list or telescope here. -->
 <script type="application/json" id="ss-config">
 {
@@ -19,7 +19,7 @@
   "defaults": { "name": "Rockwood, TX", "lat": 31.4935, "lon": -99.3706, "list": "galaxies", "scope": "S30P", "thr": 25 }
 }
 </script>
-<script defer src="js/planner.js?v=dc5f2b4"></script>
+<script defer src="js/planner.js?v=4611dbd"></script>
 </head>
 <body>
 <main>
@@ -29,8 +29,17 @@
   <div class="ss-segs">
     <button type="button" id="ss-redBtn" class="ss-redbtn" aria-pressed="false" title="Night-vision mode: red light only">● Red light</button>
     <div class="ss-seg" role="group" aria-label="Telescope" id="ss-scopeSeg">
-      <button type="button" data-s="S30">S30</button><button type="button" data-s="S30P">S30 Pro</button><button type="button" data-s="S50">S50</button><button type="button" data-s="S50P">S50 Pro</button>
+      <button type="button" data-s="S30">S30</button><button type="button" data-s="S30P">S30 Pro</button><button type="button" data-s="S50">S50</button><button type="button" data-s="S50P">S50 Pro</button><button type="button" id="ss-scopeCust" data-s="CUSTOM" title="Enter your own telescope and camera">Custom</button>
     </div>
+    <form id="ss-custForm" class="ss-cust" hidden>
+      <label>Name<input name="name" type="text" maxlength="40" placeholder="My scope"></label>
+      <label>Aperture (mm)<input name="ap" type="number" min="1" step="any" inputmode="decimal"></label>
+      <label>Focal length (mm)<input name="fl" type="number" min="1" step="any" inputmode="decimal"></label>
+      <label>Sensor width (px)<input name="w" type="number" min="1" step="1" inputmode="numeric"></label>
+      <label>Sensor height (px)<input name="h" type="number" min="1" step="1" inputmode="numeric"></label>
+      <label>Pixel size (µm)<input name="pix" type="number" min="0.1" step="any" inputmode="decimal"></label>
+      <div class="ss-custbtn"><button type="submit">Use this setup</button><button type="button" id="ss-custCancel">Cancel</button><button type="button" id="ss-custClear">Remove custom</button><span id="ss-custErr" class="ss-err" role="alert"></span></div>
+    </form>
     <div class="ss-seg" role="group" aria-label="Target list">
       <button id="ss-bG" type="button" aria-pressed="true">Galaxies</button><button id="ss-bN" type="button" aria-pressed="false">Nebulae</button>
     </div>

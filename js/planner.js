@@ -209,7 +209,7 @@ const SCOPES={
   S50P:{name:'Seestar S50 Pro',ap:50,fl:260,f:5.2,w:3840,h:2160,batt:7}};
 const PIX=2.9; // µm, all four telephoto sensors
 let scope=SCOPES[DEF.scope]?DEF.scope:'S30P';
-function scopeGeom(k){ const sc=SCOPES[k], scale=206.265*PIX/sc.fl; return {...sc, scale, L:sc.w*scale/60, S:sc.h*scale/60}; }
+function scopeGeom(k){ const sc=SCOPES[k], scale=206.265*(sc.pix||PIX)/sc.fl; return {...sc, scale, L:sc.w*scale/60, S:sc.h*scale/60}; }
 let G=scopeGeom(scope);
 function framing(fr){
   if(!fr||!fr[0]) return null;
@@ -230,13 +230,30 @@ function scaleInteg(str){
 function updateScopeUI(){
   document.querySelectorAll('#ss-scopeSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===scope)));
   $('fScope').textContent=G.name;
-  $('fSim').textContent=`Telescopius simulator setup: ${G.fl} mm focal length · ${G.ap} mm aperture · ${(G.w*PIX/1000).toFixed(2)} × ${(G.h*PIX/1000).toFixed(2)} mm sensor`;
+  $('fSim').textContent=`Telescopius simulator setup: ${G.fl} mm focal length · ${G.ap} mm aperture · ${(G.w*(G.pix||PIX)/1000).toFixed(2)} × ${(G.h*(G.pix||PIX)/1000).toFixed(2)} mm sensor`;
   $('fScopeSpec').textContent=`${G.ap} mm · ${G.fl} mm f/${G.f.toFixed(1)} · ${(G.L/60).toFixed(2)}° × ${(G.S/60).toFixed(2)}° · ${G.scale.toFixed(2)}″/px`;
   const k=(G.f/5.3)**2;
   $('tipInteg').textContent = scope==='S30P'
     ? 'Integration times are set for the S30 Pro. Switch telescopes to rescale them.'
     : `Integration times are rescaled from the S30 Pro by focal ratio (×${k.toFixed(2)} for f/${G.f.toFixed(1)}). Per-pixel brightness depends on focal ratio, not aperture, so the times stay similar; ${G.ap===50?'the 50 mm scopes record finer detail (smaller ″/px) rather than needing much less time.':'the S30 records slightly coarser detail than the S30 Pro.'}`;
   $('tipBatt').textContent=`Split long totals across several nights in the same dark window and stack them. Battery is about ${G.batt} h, so plan one or two targets per night.`;
+}
+// Custom telescope/camera: aperture, focal length, sensor pixels and pixel size, saved in this browser.
+function custLoad(){ try{ const c=JSON.parse(store.get('seestarCustomScope')||'null'); if(c&&[c.ap,c.fl,c.w,c.h,c.pix].every(v=>isFinite(v)&&v>0)) SCOPES.CUSTOM={name:String(c.name||'Custom').slice(0,40),ap:+c.ap,fl:+c.fl,f:+c.fl/+c.ap,w:+c.w,h:+c.h,pix:+c.pix,batt:6}; }catch(e){} }
+function custLabel(){ const b=$('scopeCust'); if(b) b.textContent=SCOPES.CUSTOM?SCOPES.CUSTOM.name:'Custom'; }
+function custInit(){
+  const f=$('custForm'), b=$('scopeCust'); if(!f||!b) return;
+  custLoad(); custLabel();
+  const fill=()=>{ const c=SCOPES.CUSTOM||SCOPES[scope]||SCOPES.S30P; f.elements.name.value=SCOPES.CUSTOM?c.name:''; f.elements.ap.value=c.ap; f.elements.fl.value=c.fl; f.elements.w.value=c.w; f.elements.h.value=c.h; f.elements.pix.value=c.pix||PIX; };
+  b.addEventListener('click',()=>{ if(SCOPES.CUSTOM&&scope!=='CUSTOM'){ setScope('CUSTOM'); return; } f.hidden=!f.hidden; if(!f.hidden){ fill(); f.elements.ap.focus(); } });
+  f.addEventListener('submit',e=>{ e.preventDefault();
+    const v=n=>+f.elements[n].value, ok=['ap','fl','w','h','pix'].every(n=>isFinite(v(n))&&v(n)>0);
+    if(!ok){ $('custErr').textContent='Enter a number greater than 0 in every field.'; return; }
+    $('custErr').textContent='';
+    store.set('seestarCustomScope',JSON.stringify({name:f.elements.name.value.trim()||'Custom',ap:v('ap'),fl:v('fl'),w:v('w'),h:v('h'),pix:v('pix')}));
+    custLoad(); custLabel(); setScope('CUSTOM'); f.hidden=true; });
+  $('custCancel').addEventListener('click',()=>{ f.hidden=true; });
+  $('custClear').addEventListener('click',()=>{ store.set('seestarCustomScope',''); delete SCOPES.CUSTOM; custLabel(); f.hidden=true; if(scope==='CUSTOM') setScope('S30P'); });
 }
 function setScope(k){ if(!SCOPES[k]) return; scope=k; G=scopeGeom(k); store.set('seestarScope',k); updateScopeUI(); render(); renderLook(); }
 // Telescopius object page for a catalog id like "M31", "NGC 7000", "IC 1396". Returns null if the label isn't a plain catalog id.
@@ -528,7 +545,8 @@ function init(){
     });
     const k=store.get('seestarKind'); if(k==='galaxies'||k==='nebulae') kind=k;
     $('bG').setAttribute('aria-pressed',String(kind==='galaxies')); $('bN').setAttribute('aria-pressed',String(kind==='nebulae')); $('hKind').textContent=kind==='galaxies'?'Galaxies':'Nebulae';
-    document.querySelectorAll('#ss-scopeSeg button').forEach(b=>b.addEventListener('click',()=>setScope(b.dataset.s)));
+    document.querySelectorAll('#ss-scopeSeg button:not(#ss-scopeCust)').forEach(b=>b.addEventListener('click',()=>setScope(b.dataset.s)));
+    custInit();
     $('thr').addEventListener('input',()=>{ setThr($('thr').value); store.set('seestarThr',$('thr').value); recompute(); page=1; render(); renderLook(); });
     const st=store.get('seestarThr'); setThr(st!==null?st:(DEF.thr||25));
     const sk=store.get('seestarScope'); if(SCOPES[sk]){ scope=sk; G=scopeGeom(sk); }
